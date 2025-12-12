@@ -1,26 +1,21 @@
 --====================================================--
---   Fractured Realms - Kill Aura (Bug-Fixed Version)
---   Fixed: Aura stuck, Warp stuck, not switching mobs
---   Separated Targeting Systems (Aura / Warp)
+--   Fractured Realms - Minion Kill Aura (No Player Warp)
+--   Kill Aura only controls Followers / Minions
+--   Player never moves or warps
 --====================================================--
 
 local Client = game:GetService("Players").LocalPlayer
 
-
--- ▼ CONFIG
+-- CONFIG
 getgenv().AuraRange = 20
 getgenv().HitAmount = 5
-
 getgenv().KillAura = false
-getgenv().AutoWarp = false
 
--- แยก target คนละชุด
 local AuraTarget = nil
-local WarpTarget = nil
 
 
 --====================================================--
---  UTIL: Enemy Dead Checker
+-- Enemy Dead Checker
 --====================================================--
 local function IsEnemyDead(enemy)
 	if not enemy then return true end
@@ -38,17 +33,13 @@ end
 
 
 --====================================================--
---  UTIL: Get Nearest Enemy
+-- Get Nearest Enemy
 --====================================================--
 local function GetNearestEnemy()
-	local character = Client.Character
-	if not character then return nil end
-
-	local root = character:FindFirstChild("HumanoidRootPart")
+	local root = Client.Character and Client.Character:FindFirstChild("HumanoidRootPart")
 	if not root then return nil end
 
-	local nearest
-	local closest = 9e9
+	local nearest, closest = nil, 9e9
 
 	for _, folder in workspace.ClickCoins:GetChildren() do
 		for _, enemy in folder:GetChildren() do
@@ -75,8 +66,8 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Window = Rayfield:CreateWindow({
 	Name = "Fractured Realms - Kill Aura",
 	LoadingTitle = "Loading...",
-	LoadingSubtitle = "by OnMD",
-	ToggleUIKeybind = "L",
+	LoadingSubtitle = "Minion Version",
+	ToggleUIKeybind = "K",
 })
 
 local Tab = Window:CreateTab("Main", "swords")
@@ -90,8 +81,8 @@ Tab:CreateSlider({
 	Range = {5, 100},
 	Increment = 1,
 	CurrentValue = getgenv().AuraRange,
-	Callback = function(value)
-		getgenv().AuraRange = value
+	Callback = function(v)
+		getgenv().AuraRange = v
 	end,
 })
 
@@ -104,17 +95,16 @@ Tab:CreateInput({
 	PlaceholderText = "Default = 5",
 	RemoveTextAfterFocusLost = false,
 	Callback = function(text)
-		local num = tonumber(text)
-		getgenv().HitAmount = num or 5
+		getgenv().HitAmount = tonumber(text) or 5
 	end,
 })
 
 
 --====================================================--
--- Toggle: Kill Aura (NO WARP)
+-- Toggle: Minion Kill Aura (NO PLAYER WARP)
 --====================================================--
 Tab:CreateToggle({
-	Name = "Kill Aura (No Warp)",
+	Name = "Minion Kill Aura",
 	CurrentValue = false,
 	Callback = function(state)
 		getgenv().KillAura = state
@@ -123,11 +113,12 @@ Tab:CreateToggle({
 			task.spawn(function()
 				while getgenv().KillAura do
 
-					-- หาใหม่ถ้าตาย/หาย
+					-- หาเป้าใหม่ถ้าตาย
 					if IsEnemyDead(AuraTarget) then
 						AuraTarget = GetNearestEnemy()
 					end
 
+					-- ส่ง Target ให้ Followers ตีเอง
 					if AuraTarget then
 						for i = 1, (getgenv().HitAmount or 5) do
 							game.ReplicatedStorage.Remotes.FollowerAttack.AssignTarget:FireServer(AuraTarget, true)
@@ -135,40 +126,6 @@ Tab:CreateToggle({
 					end
 
 					task.wait(0.05)
-				end
-			end)
-		end
-	end,
-})
-
-
---====================================================--
--- Toggle: Auto Warp
---====================================================--
-Tab:CreateToggle({
-	Name = "Auto Warp to Enemy",
-	CurrentValue = false,
-	Callback = function(state)
-		getgenv().AutoWarp = state
-
-		if state then
-			task.spawn(function()
-				while getgenv().AutoWarp do
-
-					-- หาเป้าวาร์ปใหม่
-					if IsEnemyDead(WarpTarget) then
-						WarpTarget = GetNearestEnemy()
-					end
-
-					local character = Client.Character
-					local root = character and character:FindFirstChild("HumanoidRootPart")
-					local er = WarpTarget and WarpTarget:FindFirstChild("HumanoidRootPart")
-
-					if root and er then
-						root.CFrame = er.CFrame * CFrame.new(0, 0, -2)
-					end
-
-					task.wait(0.15)
 				end
 			end)
 		end
