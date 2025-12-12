@@ -1,7 +1,7 @@
 --====================================================--
---   Fractured Realms - Minion Kill Aura (No Player Warp)
---   Kill Aura only controls Followers / Minions
---   Player never moves or warps
+--   Fractured Realms - Pure Minion Kill Aura
+--   Version: No Warp / No Player Movement
+--   Followers attack automatically by game's AI
 --====================================================--
 
 local Client = game:GetService("Players").LocalPlayer
@@ -11,7 +11,7 @@ getgenv().AuraRange = 20
 getgenv().HitAmount = 5
 getgenv().KillAura = false
 
-local AuraTarget = nil
+local AuraTarget = nil   -- เป้าเฉพาะของ Kill Aura ลูกน้อง
 
 
 --====================================================--
@@ -36,7 +36,10 @@ end
 -- Get Nearest Enemy
 --====================================================--
 local function GetNearestEnemy()
-	local root = Client.Character and Client.Character:FindFirstChild("HumanoidRootPart")
+	local playerChar = Client.Character
+	if not playerChar then return nil end
+
+	local root = playerChar:FindFirstChild("HumanoidRootPart")
 	if not root then return nil end
 
 	local nearest, closest = nil, 9e9
@@ -46,7 +49,7 @@ local function GetNearestEnemy()
 			local hrp = enemy:FindFirstChild("HumanoidRootPart")
 			if hrp then
 				local dist = (hrp.Position - root.Position).Magnitude
-				if dist < closest then
+				if dist < closest and dist <= getgenv().AuraRange then
 					closest = dist
 					nearest = enemy
 				end
@@ -66,7 +69,7 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Window = Rayfield:CreateWindow({
 	Name = "Fractured Realms - Kill Aura",
 	LoadingTitle = "Loading...",
-	LoadingSubtitle = "Minion Version",
+	LoadingSubtitle = "Follower Edition",
 	ToggleUIKeybind = "K",
 })
 
@@ -101,7 +104,7 @@ Tab:CreateInput({
 
 
 --====================================================--
--- Toggle: Minion Kill Aura (NO PLAYER WARP)
+-- Toggle: Follower Kill Aura (NO WARP)
 --====================================================--
 Tab:CreateToggle({
 	Name = "Minion Kill Aura",
@@ -113,12 +116,12 @@ Tab:CreateToggle({
 			task.spawn(function()
 				while getgenv().KillAura do
 
-					-- หาเป้าใหม่ถ้าตาย
+					-- หาเป้าใหม่
 					if IsEnemyDead(AuraTarget) then
 						AuraTarget = GetNearestEnemy()
 					end
 
-					-- ส่ง Target ให้ Followers ตีเอง
+					-- ส่งเป้าไปให้ลูกน้องตี
 					if AuraTarget then
 						for i = 1, (getgenv().HitAmount or 5) do
 							game.ReplicatedStorage.Remotes.FollowerAttack.AssignTarget:FireServer(AuraTarget, true)
