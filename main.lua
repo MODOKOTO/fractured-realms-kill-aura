@@ -1,160 +1,179 @@
---grimcity was here
+--====================================================--
+--   Fractured Realms - Kill Aura (Optimized Build)
+--   Fixed: Aura stuck, target not switching, warp stuck
+--   Clean code + structured + reusable
+--====================================================--
+
 local Client = game:GetService("Players").LocalPlayer
 
--- ค่า Default
+-- ▼ Global Config
 getgenv().AuraRange = 20
 getgenv().HitAmount = 5
 
 getgenv().KillAura = false
 getgenv().AutoWarp = false
 
-local CurrentEnemy = nil  -- ใช้เก็บศัตรูที่กำลังตีอยู่
+local CurrentEnemy = nil
 
 
-----------------------------------------------
--- ฟังก์ชันหา Enemy ใกล้สุด
-----------------------------------------------
-local function GetNearestEnemy()
-    local Character = Client.Character
-    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
-    local Nearest
-    local ClosestAmount = 9e9
+--====================================================--
+--  FUNCTION: ตรวจสอบว่าศัตรูตายแล้วหรือยัง
+--====================================================--
+local function IsEnemyDead(enemy)
+	if not enemy then return true end
+	
+	local hrp = enemy:FindFirstChild("HumanoidRootPart")
+	if not hrp then return true end
 
-    for _, Folder in workspace.ClickCoins:GetChildren() do
-        local Children = Folder:GetChildren()
-        if #Children == 0 then continue end
+	local hum = enemy:FindFirstChildOfClass("Humanoid")
+	if not hum then return true end
 
-        for _, Enemy in Children do
-            local HRP = Enemy:FindFirstChild("HumanoidRootPart")
-            if HRP then
-                local Magnitude = (HRP.Position - HumanoidRootPart.Position).Magnitude
-                if Magnitude < ClosestAmount then
-                    ClosestAmount = Magnitude
-                    Nearest = Enemy
-                end
-            end
-        end
-    end
+	if hum.Health <= 0 then return true end
 
-    return Nearest
+	-- ถ้าเกมใช้ Attribute
+	if enemy:GetAttribute("Dead") == true then return true end
+
+	return false
 end
 
 
-----------------------------------------------
+--====================================================--
+-- FUNCTION: หา Enemy ที่ใกล้ที่สุด
+--====================================================--
+local function GetNearestEnemy()
+	local character = Client.Character
+	if not character then return nil end
+
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root then return nil end
+
+	local nearest
+	local closestDist = 9e9
+
+	for _, folder in workspace.ClickCoins:GetChildren() do
+		for _, enemy in folder:GetChildren() do
+			local hrp = enemy:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				local dist = (hrp.Position - root.Position).Magnitude
+				if dist < closestDist then
+					closestDist = dist
+					nearest = enemy
+				end
+			end
+		end
+	end
+
+	return nearest
+end
+
+
+--====================================================--
 -- Rayfield UI Setup
-----------------------------------------------
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+--====================================================--
+
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Fractured Realms - Kill Aura",
-   LoadingTitle = "Fractured Realms - Kill Aura",
-   LoadingSubtitle = "by Grimcity",
-   ToggleUIKeybind = "K",
+	Name = "Fractured Realms - Kill Aura",
+	LoadingTitle = "Kill Aura Loaded",
+	LoadingSubtitle = "by Grimcity",
+	ToggleUIKeybind = "K",
 })
 
 local Tab = Window:CreateTab("Main", "swords")
 
-----------------------------------------------------
--- UI Slider ระยะ
-----------------------------------------------------
+
+--====================================================--
+-- UI: Slider ระยะ Kill Aura
+--====================================================--
 Tab:CreateSlider({
-    Name = "Kill Aura Range",
-    Range = {5, 100},
-    Increment = 1,
-    CurrentValue = getgenv().AuraRange,
-    Callback = function(Value)
-        getgenv().AuraRange = Value
-    end,
+	Name = "Kill Aura Range",
+	Range = {5, 100},
+	Increment = 1,
+	CurrentValue = getgenv().AuraRange,
+	Callback = function(value)
+		getgenv().AuraRange = value
+	end,
 })
 
-----------------------------------------------------
--- UI ตั้งจำนวน Hit
-----------------------------------------------------
+
+--====================================================--
+-- UI: จำนวน Hit ต่อรอบ
+--====================================================--
 Tab:CreateInput({
-    Name = "Hit Amount (Default = 5)",
-    PlaceholderText = "ใส่จำนวนครั้ง",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        local Num = tonumber(Text)
-        if Num then
-            getgenv().HitAmount = Num
-        else
-            getgenv().HitAmount = 5
-        end
-    end,
+	Name = "Hit Amount",
+	PlaceholderText = "Default = 5",
+	RemoveTextAfterFocusLost = false,
+	Callback = function(text)
+		local num = tonumber(text)
+		getgenv().HitAmount = num or 5
+	end,
 })
 
 
-----------------------------------------------------
--- ⭐ Toggle: Kill Aura แบบไม่วาร์ป ⭐
-----------------------------------------------------
+--====================================================--
+-- TOGGLE: Kill Aura (ไม่วาร์ป)
+--====================================================--
 Tab:CreateToggle({
-   Name = "Kill Aura (No Warp)",
-   CurrentValue = false,
-   Callback = function(Value)
-        getgenv().KillAura = Value
+	Name = "Kill Aura (No Warp)",
+	CurrentValue = false,
+	Callback = function(state)
+		getgenv().KillAura = state
 
-        if Value then
-            -- เริ่ม Kill Aura
-            task.spawn(function()
-                while getgenv().KillAura do
+		if state then
+			task.spawn(function()
+				while getgenv().KillAura do
 
-                    -- ตรวจสอบศัตรูที่กำลังตีอยู่
-                    if not CurrentEnemy or not CurrentEnemy:FindFirstChild("HumanoidRootPart") then
-                        CurrentEnemy = GetNearestEnemy()
-                    end
+					-- ตรวจศัตรู ถ้าตายหรือสูญหาย จะหาใหม่
+					if IsEnemyDead(CurrentEnemy) then
+						CurrentEnemy = GetNearestEnemy()
+					end
 
-                    if CurrentEnemy then
-                        -- ถ้าศัตรูตาย หาใหม่ทันที
-                        local Hum = CurrentEnemy:FindFirstChildOfClass("Humanoid")
-                        if Hum and Hum.Health <= 0 then
-                            CurrentEnemy = GetNearestEnemy()
-                        end
+					if CurrentEnemy then
+						for i = 1, (getgenv().HitAmount or 5) do
+							game:GetService("ReplicatedStorage").Remotes.FollowerAttack.AssignTarget:FireServer(CurrentEnemy, true)
+						end
+					end
 
-                        -- ตีศัตรู
-                        for i = 1, (getgenv().HitAmount or 5) do
-                            game:GetService("ReplicatedStorage").Remotes.FollowerAttack.AssignTarget:FireServer(CurrentEnemy, true)
-                        end
-                    end
-
-                    task.wait(0.05)
-                end
-            end)
-        end
-   end,
+					task.wait(0.05)
+				end
+			end)
+		end
+	end,
 })
 
 
-
-----------------------------------------------------
--- ⭐ Toggle: Auto Warp (วาร์ปไปที่มอนอย่างเดียว) ⭐
-----------------------------------------------------
+--====================================================--
+-- TOGGLE: Auto Warp ไปหาศัตรู
+--====================================================--
 Tab:CreateToggle({
-   Name = "Auto Warp to Enemy",
-   CurrentValue = false,
-   Callback = function(Value)
-        getgenv().AutoWarp = Value
+	Name = "Auto Warp to Enemy",
+	CurrentValue = false,
+	Callback = function(state)
+		getgenv().AutoWarp = state
 
-        if Value then
-            task.spawn(function()
-                while getgenv().AutoWarp do
+		if state then
+			task.spawn(function()
+				while getgenv().AutoWarp do
 
-                    -- เลือกศัตรูที่จะวาร์ปไปหา
-                    if not CurrentEnemy or not CurrentEnemy:FindFirstChild("HumanoidRootPart") then
-                        CurrentEnemy = GetNearestEnemy()
-                    end
+					if IsEnemyDead(CurrentEnemy) then
+						CurrentEnemy = GetNearestEnemy()
+					end
 
-                    local Root = Client.Character and Client.Character:FindFirstChild("HumanoidRootPart")
-                    local ER = CurrentEnemy and CurrentEnemy:FindFirstChild("HumanoidRootPart")
+					local root = Client.Character and Client.Character:FindFirstChild("HumanoidRootPart")
+					local er = CurrentEnemy and CurrentEnemy:FindFirstChild("HumanoidRootPart")
 
-                    if Root and ER then
-                        -- วาร์ปหลังมอน 2 studs
-                        Root.CFrame = ER.CFrame * CFrame.new(0, 0, -2)
-                    end
+					if root and er then
+						root.CFrame = er.CFrame * CFrame.new(0, 0, -2)
+					end
 
-                    task.wait(0.15)
-                end
-            end)
-        end
-   end,
+					task.wait(0.15)
+				end
+			end)
+		end
+	end,
 })
+
+--====================================================--
+--  END SCRIPT
+--====================================================--
