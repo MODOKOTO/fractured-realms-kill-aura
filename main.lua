@@ -1,36 +1,36 @@
 --====================================================--
---   Fractured Realms - Kill Aura (Optimized Build)
---   Fixed: Aura stuck, target not switching, warp stuck
---   Clean code + structured + reusable
+--   Fractured Realms - Kill Aura (Bug-Fixed Version)
+--   Fixed: Aura stuck, Warp stuck, not switching mobs
+--   Separated Targeting Systems (Aura / Warp)
 --====================================================--
 
 local Client = game:GetService("Players").LocalPlayer
 
--- ▼ Global Config
+
+-- ▼ CONFIG
 getgenv().AuraRange = 20
 getgenv().HitAmount = 5
 
 getgenv().KillAura = false
 getgenv().AutoWarp = false
 
-local CurrentEnemy = nil
+-- แยก target คนละชุด
+local AuraTarget = nil
+local WarpTarget = nil
 
 
 --====================================================--
---  FUNCTION: ตรวจสอบว่าศัตรูตายแล้วหรือยัง
+--  UTIL: Enemy Dead Checker
 --====================================================--
 local function IsEnemyDead(enemy)
 	if not enemy then return true end
-	
+
+	local hum = enemy:FindFirstChildOfClass("Humanoid")
+	if not hum or hum.Health <= 0 then return true end
+
 	local hrp = enemy:FindFirstChild("HumanoidRootPart")
 	if not hrp then return true end
 
-	local hum = enemy:FindFirstChildOfClass("Humanoid")
-	if not hum then return true end
-
-	if hum.Health <= 0 then return true end
-
-	-- ถ้าเกมใช้ Attribute
 	if enemy:GetAttribute("Dead") == true then return true end
 
 	return false
@@ -38,7 +38,7 @@ end
 
 
 --====================================================--
--- FUNCTION: หา Enemy ที่ใกล้ที่สุด
+--  UTIL: Get Nearest Enemy
 --====================================================--
 local function GetNearestEnemy()
 	local character = Client.Character
@@ -48,15 +48,15 @@ local function GetNearestEnemy()
 	if not root then return nil end
 
 	local nearest
-	local closestDist = 9e9
+	local closest = 9e9
 
 	for _, folder in workspace.ClickCoins:GetChildren() do
 		for _, enemy in folder:GetChildren() do
 			local hrp = enemy:FindFirstChild("HumanoidRootPart")
 			if hrp then
 				local dist = (hrp.Position - root.Position).Magnitude
-				if dist < closestDist then
-					closestDist = dist
+				if dist < closest then
+					closest = dist
 					nearest = enemy
 				end
 			end
@@ -68,23 +68,22 @@ end
 
 
 --====================================================--
--- Rayfield UI Setup
+-- UI: Rayfield
 --====================================================--
-
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
 	Name = "Fractured Realms - Kill Aura",
-	LoadingTitle = "Kill Aura Loaded",
-	LoadingSubtitle = "by Grimcity",
-	ToggleUIKeybind = "K",
+	LoadingTitle = "Loading...",
+	LoadingSubtitle = "by OnMD",
+	ToggleUIKeybind = "L",
 })
 
 local Tab = Window:CreateTab("Main", "swords")
 
 
 --====================================================--
--- UI: Slider ระยะ Kill Aura
+-- UI: Aura Range Slider
 --====================================================--
 Tab:CreateSlider({
 	Name = "Kill Aura Range",
@@ -98,7 +97,7 @@ Tab:CreateSlider({
 
 
 --====================================================--
--- UI: จำนวน Hit ต่อรอบ
+-- UI: Hit Amount
 --====================================================--
 Tab:CreateInput({
 	Name = "Hit Amount",
@@ -112,7 +111,7 @@ Tab:CreateInput({
 
 
 --====================================================--
--- TOGGLE: Kill Aura (ไม่วาร์ป)
+-- Toggle: Kill Aura (NO WARP)
 --====================================================--
 Tab:CreateToggle({
 	Name = "Kill Aura (No Warp)",
@@ -124,14 +123,14 @@ Tab:CreateToggle({
 			task.spawn(function()
 				while getgenv().KillAura do
 
-					-- ตรวจศัตรู ถ้าตายหรือสูญหาย จะหาใหม่
-					if IsEnemyDead(CurrentEnemy) then
-						CurrentEnemy = GetNearestEnemy()
+					-- หาใหม่ถ้าตาย/หาย
+					if IsEnemyDead(AuraTarget) then
+						AuraTarget = GetNearestEnemy()
 					end
 
-					if CurrentEnemy then
+					if AuraTarget then
 						for i = 1, (getgenv().HitAmount or 5) do
-							game:GetService("ReplicatedStorage").Remotes.FollowerAttack.AssignTarget:FireServer(CurrentEnemy, true)
+							game.ReplicatedStorage.Remotes.FollowerAttack.AssignTarget:FireServer(AuraTarget, true)
 						end
 					end
 
@@ -144,7 +143,7 @@ Tab:CreateToggle({
 
 
 --====================================================--
--- TOGGLE: Auto Warp ไปหาศัตรู
+-- Toggle: Auto Warp
 --====================================================--
 Tab:CreateToggle({
 	Name = "Auto Warp to Enemy",
@@ -156,12 +155,14 @@ Tab:CreateToggle({
 			task.spawn(function()
 				while getgenv().AutoWarp do
 
-					if IsEnemyDead(CurrentEnemy) then
-						CurrentEnemy = GetNearestEnemy()
+					-- หาเป้าวาร์ปใหม่
+					if IsEnemyDead(WarpTarget) then
+						WarpTarget = GetNearestEnemy()
 					end
 
-					local root = Client.Character and Client.Character:FindFirstChild("HumanoidRootPart")
-					local er = CurrentEnemy and CurrentEnemy:FindFirstChild("HumanoidRootPart")
+					local character = Client.Character
+					local root = character and character:FindFirstChild("HumanoidRootPart")
+					local er = WarpTarget and WarpTarget:FindFirstChild("HumanoidRootPart")
 
 					if root and er then
 						root.CFrame = er.CFrame * CFrame.new(0, 0, -2)
@@ -173,7 +174,3 @@ Tab:CreateToggle({
 		end
 	end,
 })
-
---====================================================--
---  END SCRIPT
---====================================================--
