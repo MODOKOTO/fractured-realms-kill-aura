@@ -1,6 +1,8 @@
 --====================================================--
 --   Fractured Realms - Pure Minion Kill Aura
---   + Auto Switch Target System (STABLE)
+--   + Auto Switch Target
+--   + Dungeons Support
+--   + Infinity Follower Health
 --====================================================--
 
 local Players = game:GetService("Players")
@@ -8,15 +10,16 @@ local Client = Players.LocalPlayer
 local RS = game:GetService("ReplicatedStorage")
 
 --====================--
--- CONFIG (GLOBAL)
+-- CONFIG
 --====================--
 getgenv().AuraRange = 20
 getgenv().HitAmount = 5
 getgenv().KillAura = false
 
 getgenv().AutoSwitchTarget = false
-getgenv().SwitchInterval = 3 -- seconds
+getgenv().SwitchInterval = 3
 
+getgenv().InfinityFollowerHP = false
 
 --====================--
 -- STATE
@@ -41,7 +44,25 @@ end
 
 
 --====================--
--- Get Nearest Enemy
+-- Get Enemy Containers
+--====================--
+local function GetEnemyFolders()
+	local folders = {}
+
+	if workspace:FindFirstChild("ClickCoins") then
+		table.insert(folders, workspace.ClickCoins)
+	end
+
+	if workspace:FindFirstChild("Dungeons") then
+		table.insert(folders, workspace.Dungeons)
+	end
+
+	return folders
+end
+
+
+--====================--
+-- Get Nearest Enemy (ClickCoins + Dungeons)
 --====================--
 local function GetNearestEnemy()
 	local char = Client.Character
@@ -52,14 +73,16 @@ local function GetNearestEnemy()
 
 	local nearest, closest = nil, math.huge
 
-	for _, zone in ipairs(workspace.ClickCoins:GetChildren()) do
-		for _, enemy in ipairs(zone:GetChildren()) do
-			local hrp = enemy:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				local dist = (hrp.Position - root.Position).Magnitude
-				if dist <= getgenv().AuraRange and dist < closest then
-					closest = dist
-					nearest = enemy
+	for _, container in ipairs(GetEnemyFolders()) do
+		for _, zone in ipairs(container:GetChildren()) do
+			for _, enemy in ipairs(zone:GetChildren()) do
+				local hrp = enemy:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					local dist = (hrp.Position - root.Position).Magnitude
+					if dist <= getgenv().AuraRange and dist < closest then
+						closest = dist
+						nearest = enemy
+					end
 				end
 			end
 		end
@@ -70,7 +93,7 @@ end
 
 
 --====================--
--- Assign Target To Minions
+-- Command Minions
 --====================--
 local function CommandMinions(enemy)
 	if not enemy then return end
@@ -79,6 +102,30 @@ local function CommandMinions(enemy)
 		RS.Remotes.FollowerAttack.AssignTarget:FireServer(enemy, true)
 	end
 end
+
+
+--====================--
+-- Infinity Follower Health
+--====================--
+task.spawn(function()
+	while true do
+		if getgenv().InfinityFollowerHP then
+			local folder = workspace:FindFirstChild("Player_Followers")
+			if folder then
+				local myFollowers = folder:FindFirstChild(Client.Name .. "_Followers")
+				if myFollowers then
+					for _, minion in ipairs(myFollowers:GetChildren()) do
+						local hum = minion:FindFirstChildOfClass("Humanoid")
+						if hum then
+							hum.Health = hum.MaxHealth
+						end
+					end
+				end
+			end
+		end
+		task.wait(0.2)
+	end
+end)
 
 
 --====================--
@@ -96,7 +143,7 @@ local Tab = Window:CreateTab("Main", "swords")
 
 Tab:CreateSlider({
 	Name = "Kill Aura Range",
-	Range = {5, 100},
+	Range = {5, 150},
 	Increment = 1,
 	CurrentValue = getgenv().AuraRange,
 	Callback = function(v)
@@ -130,6 +177,14 @@ Tab:CreateInput({
 	end,
 })
 
+Tab:CreateToggle({
+	Name = "Infinity Follower Health",
+	CurrentValue = false,
+	Callback = function(v)
+		getgenv().InfinityFollowerHP = v
+	end,
+})
+
 
 --====================--
 -- Kill Aura Loop
@@ -151,24 +206,18 @@ Tab:CreateToggle({
 			while getgenv().KillAura do
 				local now = tick()
 
-				-- 1️⃣ เป้าไม่มี หรือ มอนตาย → หาใหม่ทันที
 				if IsEnemyDead(AuraTarget) then
 					AuraTarget = GetNearestEnemy()
 					LastSwitchTime = now
 				end
 
-				-- 2️⃣ Auto Switch ตามเวลา
 				if getgenv().AutoSwitchTarget and AuraTarget then
 					if now - LastSwitchTime >= getgenv().SwitchInterval then
-						local newTarget = GetNearestEnemy()
-						if newTarget ~= AuraTarget then
-							AuraTarget = newTarget
-						end
+						AuraTarget = GetNearestEnemy()
 						LastSwitchTime = now
 					end
 				end
 
-				-- 3️⃣ สั่ง minion ตี
 				if AuraTarget then
 					CommandMinions(AuraTarget)
 				end
