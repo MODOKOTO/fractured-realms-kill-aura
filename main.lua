@@ -1,161 +1,140 @@
 --====================================================--
---   Fractured Realms - Pure Minion Kill Aura
---   + Auto Switch Target System
+-- Fractured Realms - Manual Monster Selector + Minion Control
 --====================================================--
 
-local Client = game:GetService("Players").LocalPlayer
+local Players = game:GetService("Players")
+local Client = Players.LocalPlayer
 
--- CONFIG
-getgenv().AuraRange = 20
-getgenv().HitAmount = 5
-getgenv().KillAura = false
+--========================--
+-- GLOBAL STATE
+--========================--
+getgenv().SelectedZone = "Zone1"
+getgenv().SelectedMonster = nil
 
-getgenv().AutoSwitchTarget = false
-getgenv().SwitchInterval = 3 -- วินาที
-
-local AuraTarget = nil
-local LastSwitchTime = 0
-
-
---====================================================--
--- Enemy Dead Checker
---====================================================--
-local function IsEnemyDead(enemy)
-	if not enemy then return true end
-
-	local hum = enemy:FindFirstChildOfClass("Humanoid")
-	if not hum or hum.Health <= 0 then return true end
-
-	local hrp = enemy:FindFirstChild("HumanoidRootPart")
-	if not hrp then return true end
-
-	if enemy:GetAttribute("Dead") == true then return true end
-
-	return false
+--========================--
+-- UTIL
+--========================--
+local function GetZones()
+	local zones = {}
+	for _, z in ipairs(workspace.ClickCoins:GetChildren()) do
+		table.insert(zones, z.Name)
+	end
+	return zones
 end
 
+local function GetMonstersInZone(zoneName)
+	local list = {}
+	local zone = workspace.ClickCoins:FindFirstChild(zoneName)
+	if not zone then return list end
 
---====================================================--
--- Get Nearest Enemy
---====================================================--
-local function GetNearestEnemy()
-	local char = Client.Character
-	if not char then return nil end
+	for _, m in ipairs(zone:GetChildren()) do
+		if m:IsA("Model") and m:FindFirstChild("ClickPart") then
+			table.insert(list, m.Name)
+		end
+	end
+	return list
+end
 
-	local root = char:FindFirstChild("HumanoidRootPart")
-	if not root then return nil end
+local function GetMonsterByName(zone, name)
+	local z = workspace.ClickCoins:FindFirstChild(zone)
+	if not z then return nil end
+	return z:FindFirstChild(name)
+end
 
-	local nearest, closest = nil, math.huge
+--========================--
+-- MINION HANDLER
+--========================--
+local function ApplyTargetToMinions(enemyName)
+	local folder = workspace.Player_Followers:FindFirstChild(Client.Name .. "_Followers")
+	if not folder then return end
 
-	for _, folder in workspace.ClickCoins:GetChildren() do
-		for _, enemy in folder:GetChildren() do
-			local hrp = enemy:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				local dist = (hrp.Position - root.Position).Magnitude
-				if dist <= getgenv().AuraRange and dist < closest then
-					closest = dist
-					nearest = enemy
-				end
+	for _, minion in ipairs(folder:GetChildren()) do
+		local hum = minion:FindFirstChildOfClass("Humanoid")
+		local targetFolder = minion:FindFirstChild("TargetFolder")
+
+		if hum then
+			hum.MaxHealth = 999999
+			hum.Health = hum.MaxHealth
+		end
+
+		if targetFolder and targetFolder:FindFirstChild("NewTarget") then
+			targetFolder.NewTarget.Value = enemyName
+			if targetFolder:FindFirstChild("OldTarget") then
+				targetFolder.OldTarget.Value = enemyName
 			end
 		end
 	end
-
-	return nearest
 end
 
-
---====================================================--
+--========================--
 -- UI
---====================================================--
+--========================--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
-
 local Window = Rayfield:CreateWindow({
-	Name = "Fractured Realms - Kill Aura",
+	Name = "Fractured Realms - Monster Control",
 	ToggleUIKeybind = "K",
 })
 
-local Tab = Window:CreateTab("Main", "swords")
+local Tab = Window:CreateTab("Selector", "swords")
 
-
-Tab:CreateSlider({
-	Name = "Kill Aura Range",
-	Range = {5, 100},
-	Increment = 1,
-	CurrentValue = getgenv().AuraRange,
+--========================--
+-- Zone Dropdown
+--========================--
+Tab:CreateDropdown({
+	Name = "Select Zone",
+	Options = GetZones(),
+	CurrentOption = getgenv().SelectedZone,
 	Callback = function(v)
-		getgenv().AuraRange = v
+		getgenv().SelectedZone = v
 	end,
 })
 
-Tab:CreateInput({
-	Name = "Hit Amount",
-	PlaceholderText = "Default = 5",
-	RemoveTextAfterFocusLost = false,
-	Callback = function(text)
-		getgenv().HitAmount = tonumber(text) or 5
-	end,
-})
-
--- 🔄 Auto Switch Toggle
-Tab:CreateToggle({
-	Name = "Auto Switch Target",
-	CurrentValue = false,
+--========================--
+-- Monster Dropdown
+--========================--
+Tab:CreateDropdown({
+	Name = "Select Monster",
+	Options = {},
 	Callback = function(v)
-		getgenv().AutoSwitchTarget = v
+		getgenv().SelectedMonster = v
 	end,
 })
 
--- ⏱ Switch Interval
-Tab:CreateInput({
-	Name = "Switch Interval (Seconds)",
-	PlaceholderText = "Default = 3",
-	RemoveTextAfterFocusLost = false,
-	Callback = function(text)
-		getgenv().SwitchInterval = tonumber(text) or 3
+-- Refresh monsters when zone changes
+Tab:CreateButton({
+	Name = "Refresh Monster List",
+	Callback = function()
+		local monsters = GetMonstersInZone(getgenv().SelectedZone)
+		Rayfield:Notify({
+			Title = "Monster List Updated",
+			Content = "Found " .. #monsters .. " monsters",
+			Duration = 2,
+		})
 	end,
 })
 
-
---====================================================--
--- Kill Aura Loop
---====================================================--
-Tab:CreateToggle({
-	Name = "Minion Kill Aura",
-	CurrentValue = false,
-	Callback = function(state)
-		getgenv().KillAura = state
-
-		if state then
-			task.spawn(function()
-				LastSwitchTime = tick()
-
-				while getgenv().KillAura do
-					local now = tick()
-
-					-- เปลี่ยนเป้าเมื่อมอนตาย
-					if IsEnemyDead(AuraTarget) then
-						AuraTarget = GetNearestEnemy()
-						LastSwitchTime = now
-					end
-
-					-- เปลี่ยนเป้าตามเวลา
-					if getgenv().AutoSwitchTarget then
-						if now - LastSwitchTime >= getgenv().SwitchInterval then
-							AuraTarget = GetNearestEnemy()
-							LastSwitchTime = now
-						end
-					end
-
-					-- สั่ง follower ตี
-					if AuraTarget then
-						for i = 1, (getgenv().HitAmount or 5) do
-							game.ReplicatedStorage.Remotes.FollowerAttack.AssignTarget:FireServer(AuraTarget, true)
-						end
-					end
-
-					task.wait(0.05)
-				end
-			end)
+--========================--
+-- Warp Button (Player Only)
+--========================--
+Tab:CreateButton({
+	Name = "Warp To Selected Monster",
+	Callback = function()
+		if not getgenv().SelectedMonster then return end
+		local monster = GetMonsterByName(getgenv().SelectedZone, getgenv().SelectedMonster)
+		if monster and monster:FindFirstChild("HumanoidRootPart") then
+			Client.Character.HumanoidRootPart.CFrame =
+				monster.HumanoidRootPart.CFrame * CFrame.new(0, 0, -3)
 		end
+	end,
+})
+
+--========================--
+-- Minion Attack Button
+--========================--
+Tab:CreateButton({
+	Name = "Send Minions To Attack",
+	Callback = function()
+		if not getgenv().SelectedMonster then return end
+		ApplyTargetToMinions(getgenv().SelectedMonster)
 	end,
 })
