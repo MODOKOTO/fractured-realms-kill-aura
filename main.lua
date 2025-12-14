@@ -1,7 +1,6 @@
 --====================================================--
 --   Fractured Realms - Pure Minion Kill Aura
---   Version: No Warp / No Player Movement
---   Followers attack automatically by game's AI
+--   + Auto Switch Target System
 --====================================================--
 
 local Client = game:GetService("Players").LocalPlayer
@@ -11,7 +10,11 @@ getgenv().AuraRange = 20
 getgenv().HitAmount = 5
 getgenv().KillAura = false
 
-local AuraTarget = nil   -- เป้าเฉพาะของ Kill Aura ลูกน้อง
+getgenv().AutoSwitchTarget = false
+getgenv().SwitchInterval = 3 -- วินาที
+
+local AuraTarget = nil
+local LastSwitchTime = 0
 
 
 --====================================================--
@@ -36,20 +39,20 @@ end
 -- Get Nearest Enemy
 --====================================================--
 local function GetNearestEnemy()
-	local playerChar = Client.Character
-	if not playerChar then return nil end
+	local char = Client.Character
+	if not char then return nil end
 
-	local root = playerChar:FindFirstChild("HumanoidRootPart")
+	local root = char:FindFirstChild("HumanoidRootPart")
 	if not root then return nil end
 
-	local nearest, closest = nil, 9e9
+	local nearest, closest = nil, math.huge
 
 	for _, folder in workspace.ClickCoins:GetChildren() do
 		for _, enemy in folder:GetChildren() do
 			local hrp = enemy:FindFirstChild("HumanoidRootPart")
 			if hrp then
 				local dist = (hrp.Position - root.Position).Magnitude
-				if dist < closest and dist <= getgenv().AuraRange then
+				if dist <= getgenv().AuraRange and dist < closest then
 					closest = dist
 					nearest = enemy
 				end
@@ -62,23 +65,18 @@ end
 
 
 --====================================================--
--- UI: Rayfield
+-- UI
 --====================================================--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
 	Name = "Fractured Realms - Kill Aura",
-	LoadingTitle = "Loading...",
-	LoadingSubtitle = "Follower Edition",
 	ToggleUIKeybind = "K",
 })
 
 local Tab = Window:CreateTab("Main", "swords")
 
 
---====================================================--
--- UI: Aura Range Slider
---====================================================--
 Tab:CreateSlider({
 	Name = "Kill Aura Range",
 	Range = {5, 100},
@@ -89,10 +87,6 @@ Tab:CreateSlider({
 	end,
 })
 
-
---====================================================--
--- UI: Hit Amount
---====================================================--
 Tab:CreateInput({
 	Name = "Hit Amount",
 	PlaceholderText = "Default = 5",
@@ -102,9 +96,28 @@ Tab:CreateInput({
 	end,
 })
 
+-- 🔄 Auto Switch Toggle
+Tab:CreateToggle({
+	Name = "Auto Switch Target",
+	CurrentValue = false,
+	Callback = function(v)
+		getgenv().AutoSwitchTarget = v
+	end,
+})
+
+-- ⏱ Switch Interval
+Tab:CreateInput({
+	Name = "Switch Interval (Seconds)",
+	PlaceholderText = "Default = 3",
+	RemoveTextAfterFocusLost = false,
+	Callback = function(text)
+		getgenv().SwitchInterval = tonumber(text) or 3
+	end,
+})
+
 
 --====================================================--
--- Toggle: Follower Kill Aura (NO WARP)
+-- Kill Aura Loop
 --====================================================--
 Tab:CreateToggle({
 	Name = "Minion Kill Aura",
@@ -114,14 +127,26 @@ Tab:CreateToggle({
 
 		if state then
 			task.spawn(function()
-				while getgenv().KillAura do
+				LastSwitchTime = tick()
 
-					-- หาเป้าใหม่
+				while getgenv().KillAura do
+					local now = tick()
+
+					-- เปลี่ยนเป้าเมื่อมอนตาย
 					if IsEnemyDead(AuraTarget) then
 						AuraTarget = GetNearestEnemy()
+						LastSwitchTime = now
 					end
 
-					-- ส่งเป้าไปให้ลูกน้องตี
+					-- เปลี่ยนเป้าตามเวลา
+					if getgenv().AutoSwitchTarget then
+						if now - LastSwitchTime >= getgenv().SwitchInterval then
+							AuraTarget = GetNearestEnemy()
+							LastSwitchTime = now
+						end
+					end
+
+					-- สั่ง follower ตี
 					if AuraTarget then
 						for i = 1, (getgenv().HitAmount or 5) do
 							game.ReplicatedStorage.Remotes.FollowerAttack.AssignTarget:FireServer(AuraTarget, true)
