@@ -1,6 +1,9 @@
 --====================================================--
 --  Fractured Realms - Universal Minion Kill Aura
---  + Manual Click Target
+--  • Supports ALL enemies cloned from ReplicatedStorage
+--  • No Warp / No Player Movement
+--  • Auto Switch Target
+--  • Infinity Follower HP
 --====================================================--
 
 --====================--
@@ -11,7 +14,7 @@ local RS = game:GetService("ReplicatedStorage")
 local Client = Players.LocalPlayer
 
 --====================--
--- CONFIG
+-- CONFIG (Default)
 --====================--
 getgenv().AuraRange = 20
 getgenv().HitAmount = 5
@@ -26,11 +29,10 @@ getgenv().InfinityFollowerHP = false
 -- STATE
 --====================--
 local AuraTarget = nil
-local ManualTarget = nil
 local LastSwitchTime = 0
 
 --====================--
--- ENEMY CHECK
+-- ENEMY VALIDATION
 --====================--
 local function IsEnemyDead(enemy)
 	if not enemy or not enemy.Parent then return true end
@@ -39,36 +41,36 @@ local function IsEnemyDead(enemy)
 	if not hum or hum.Health <= 0 then return true end
 
 	if enemy:GetAttribute("Dead") == true then return true end
+
 	return false
 end
 
 --====================--
--- COLLECT ALL ENEMIES
+-- GET ALL ENEMIES (REP CLONE SAFE)
 --====================--
 local function GetAllEnemies()
 	local enemies = {}
 
-	local function scan(container)
-		if not container then return end
-		for _, obj in ipairs(container:GetDescendants()) do
-			if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Model") then
+			local hum = obj:FindFirstChildOfClass("Humanoid")
+			if hum and hum.Health > 0 then
+
+				-- ❌ Ignore players
+				if Players:GetPlayerFromCharacter(obj) then
+					continue
+				end
+
+				-- ❌ Ignore own followers
+				local pf = workspace:FindFirstChild("Player_Followers")
+				if pf and obj:IsDescendantOf(pf) then
+					continue
+				end
+
 				table.insert(enemies, obj)
 			end
 		end
 	end
-
-	scan(workspace:FindFirstChild("ClickCoins"))
-	scan(workspace:FindFirstChild("Dungeons"))
-
-	local inf = workspace:FindFirstChild("INFINITE_DUNGEON")
-	if inf then
-		local model = inf:FindFirstChild("infinite_Dungeon")
-		if model then
-			scan(model:FindFirstChild("Bosses"))
-		end
-	end
-
-	scan(workspace:FindFirstChild("Seraphim_Fight"))
 
 	return enemies
 end
@@ -135,41 +137,14 @@ task.spawn(function()
 end)
 
 --====================--
--- CLICK DETECTOR TARGETING
---====================--
-local function GetEnemyFromClickDetector(cd)
-	local p = cd.Parent
-	while p and p ~= workspace do
-		if p:IsA("Model") and p:FindFirstChildOfClass("Humanoid") then
-			return p
-		end
-		p = p.Parent
-	end
-	return nil
-end
-
-for _, obj in ipairs(workspace:GetDescendants()) do
-	if obj:IsA("ClickDetector") then
-		obj.MouseClick:Connect(function(player)
-			if player ~= Client then return end
-
-			local enemy = GetEnemyFromClickDetector(obj)
-			if enemy then
-				ManualTarget = enemy
-				AuraTarget = enemy
-				LastSwitchTime = tick()
-			end
-		end)
-	end
-end
-
---====================--
 -- UI (Rayfield)
 --====================--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
 	Name = "Fractured Realms - Minion Aura",
+	LoadingTitle = "Fractured Realms",
+	LoadingSubtitle = "Universal Enemy Support",
 	ToggleUIKeybind = "K",
 })
 
@@ -229,7 +204,6 @@ Tab:CreateToggle({
 		getgenv().KillAura = state
 		if not state then
 			AuraTarget = nil
-			ManualTarget = nil
 			return
 		end
 
@@ -239,20 +213,12 @@ Tab:CreateToggle({
 			while getgenv().KillAura do
 				local now = tick()
 
-				-- ใช้เป้าที่คลิกก่อน
-				if ManualTarget and not IsEnemyDead(ManualTarget) then
-					AuraTarget = ManualTarget
-				else
-					ManualTarget = nil
-
-					if IsEnemyDead(AuraTarget) then
-						AuraTarget = GetNearestEnemy()
-						LastSwitchTime = now
-					end
+				if IsEnemyDead(AuraTarget) then
+					AuraTarget = GetNearestEnemy()
+					LastSwitchTime = now
 				end
 
-				-- Auto Switch (เฉพาะตอนไม่มี Manual Target)
-				if getgenv().AutoSwitchTarget and not ManualTarget and AuraTarget then
+				if getgenv().AutoSwitchTarget and AuraTarget then
 					if now - LastSwitchTime >= getgenv().SwitchInterval then
 						AuraTarget = GetNearestEnemy()
 						LastSwitchTime = now
