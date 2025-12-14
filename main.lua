@@ -56,6 +56,58 @@ local function GetAllEnemies()
 
 	local function scan(container)
 		if not container then return end
+		for _, obj in ipairs(contain--====================================================--
+--  Fractured Realms - Universal Minion Kill Aura
+--  + Manual Click Target
+--====================================================--
+
+--====================--
+-- SERVICES
+--====================--
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local Client = Players.LocalPlayer
+
+--====================--
+-- CONFIG
+--====================--
+getgenv().AuraRange = 20
+getgenv().HitAmount = 5
+getgenv().KillAura = false
+
+getgenv().AutoSwitchTarget = false
+getgenv().SwitchInterval = 3
+
+getgenv().InfinityFollowerHP = false
+
+--====================--
+-- STATE
+--====================--
+local AuraTarget = nil
+local ManualTarget = nil
+local LastSwitchTime = 0
+
+--====================--
+-- ENEMY CHECK
+--====================--
+local function IsEnemyDead(enemy)
+	if not enemy or not enemy.Parent then return true end
+
+	local hum = enemy:FindFirstChildOfClass("Humanoid")
+	if not hum or hum.Health <= 0 then return true end
+
+	if enemy:GetAttribute("Dead") == true then return true end
+	return false
+end
+
+--====================--
+-- COLLECT ALL ENEMIES
+--====================--
+local function GetAllEnemies()
+	local enemies = {}
+
+	local function scan(container)
+		if not container then return end
 		for _, obj in ipairs(container:GetDescendants()) do
 			if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
 				table.insert(enemies, obj)
@@ -63,11 +115,9 @@ local function GetAllEnemies()
 		end
 	end
 
-	-- Normal mobs
 	scan(workspace:FindFirstChild("ClickCoins"))
 	scan(workspace:FindFirstChild("Dungeons"))
 
-	-- Infinite Dungeon Bosses
 	local inf = workspace:FindFirstChild("INFINITE_DUNGEON")
 	if inf then
 		local model = inf:FindFirstChild("infinite_Dungeon")
@@ -76,7 +126,6 @@ local function GetAllEnemies()
 		end
 	end
 
-	-- World Boss
 	scan(workspace:FindFirstChild("Seraphim_Fight"))
 
 	return enemies
@@ -144,6 +193,35 @@ task.spawn(function()
 end)
 
 --====================--
+-- CLICK DETECTOR TARGETING
+--====================--
+local function GetEnemyFromClickDetector(cd)
+	local p = cd.Parent
+	while p and p ~= workspace do
+		if p:IsA("Model") and p:FindFirstChildOfClass("Humanoid") then
+			return p
+		end
+		p = p.Parent
+	end
+	return nil
+end
+
+for _, obj in ipairs(workspace:GetDescendants()) do
+	if obj:IsA("ClickDetector") then
+		obj.MouseClick:Connect(function(player)
+			if player ~= Client then return end
+
+			local enemy = GetEnemyFromClickDetector(obj)
+			if enemy then
+				ManualTarget = enemy
+				AuraTarget = enemy
+				LastSwitchTime = tick()
+			end
+		end)
+	end
+end
+
+--====================--
 -- UI (Rayfield)
 --====================--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
@@ -209,6 +287,7 @@ Tab:CreateToggle({
 		getgenv().KillAura = state
 		if not state then
 			AuraTarget = nil
+			ManualTarget = nil
 			return
 		end
 
@@ -218,12 +297,20 @@ Tab:CreateToggle({
 			while getgenv().KillAura do
 				local now = tick()
 
-				if IsEnemyDead(AuraTarget) then
-					AuraTarget = GetNearestEnemy()
-					LastSwitchTime = now
+				-- ใช้เป้าที่คลิกก่อน
+				if ManualTarget and not IsEnemyDead(ManualTarget) then
+					AuraTarget = ManualTarget
+				else
+					ManualTarget = nil
+
+					if IsEnemyDead(AuraTarget) then
+						AuraTarget = GetNearestEnemy()
+						LastSwitchTime = now
+					end
 				end
 
-				if getgenv().AutoSwitchTarget and AuraTarget then
+				-- Auto Switch (เฉพาะตอนไม่มี Manual Target)
+				if getgenv().AutoSwitchTarget and not ManualTarget and AuraTarget then
 					if now - LastSwitchTime >= getgenv().SwitchInterval then
 						AuraTarget = GetNearestEnemy()
 						LastSwitchTime = now
@@ -239,6 +326,7 @@ Tab:CreateToggle({
 		end)
 	end,
 })
+
 
 
 -- --====================================================--
