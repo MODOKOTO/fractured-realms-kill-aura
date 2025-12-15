@@ -185,8 +185,8 @@ CombatTab:CreateSlider({
 })
 
 CombatTab:CreateDropdown({
-	Name = "Hit Amount",
-	Options = {"x2", "x5", "x10", "x20", "x50", "x100", "x200", "x500"},
+	Name = "Hit Amount (x1 = Normal)",
+	Options = {"1", "2", "5", "10", "20", "50", "100", "200", "500"},
 	CurrentOption = "x5",
 	Callback = function(option)
 		local value = tonumber(option:match("%d+"))
