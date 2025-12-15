@@ -170,6 +170,52 @@ task.spawn(function()
 end)
 
 --====================--
+-- GRAPHICS (ANTI LAG)
+--====================--
+
+getgenv().LowGraphics = false
+
+local function SetLowGraphics(enable)
+	for _, v in ipairs(workspace:GetDescendants()) do
+		-- Remove effects
+		if v:IsA("ParticleEmitter")
+			or v:IsA("Trail")
+			or v:IsA("Beam")
+			or v:IsA("Fire")
+			or v:IsA("Smoke")
+			or v:IsA("Sparkles") then
+
+			v.Enabled = not enable
+
+		-- Disable lights
+		elseif v:IsA("PointLight")
+			or v:IsA("SpotLight")
+			or v:IsA("SurfaceLight") then
+
+			v.Enabled = not enable
+
+		-- Kill fancy materials
+		elseif v:IsA("BasePart") then
+			if enable then
+				v.Material = Enum.Material.Plastic
+				v.Reflectance = 0
+			end
+		end
+	end
+
+	-- Global lighting
+	local Lighting = game:GetService("Lighting")
+
+	if enable then
+		Lighting.GlobalShadows = false
+		Lighting.FogEnd = 9e9
+		Lighting.Brightness = 1
+	else
+		Lighting.GlobalShadows = true
+	end
+end
+
+--====================--
 -- UI (RAYFIELD)
 --====================--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
@@ -301,6 +347,29 @@ MoveTab:CreateSlider({
 	CurrentValue = getgenv().JumpPower,
 	Callback = function(v)
 		getgenv().JumpPower = v
+	end,
+})
+
+--====================--
+-- GRAPHICS TAB
+--====================--
+local GraphicsTab = Window:CreateTab("Graphics", "monitor")
+
+GraphicsTab:CreateLabel("Performance Mode (Anti Lag)")
+
+GraphicsTab:CreateToggle({
+	Name = "Low Graphics (Extreme)",
+	CurrentValue = getgenv().LowGraphics,
+	Callback = function(v)
+		getgenv().LowGraphics = v
+		SetLowGraphics(v)
+
+		Rayfield:Notify({
+			Title = "Graphics",
+			Content = v and "Low Graphics : ON (Max FPS)"
+				or "Low Graphics : OFF",
+			Duration = 2,
+		})
 	end,
 })
 
