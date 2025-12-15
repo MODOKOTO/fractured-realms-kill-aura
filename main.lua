@@ -69,6 +69,18 @@ local ZoneNameMap = {
 	["Zone11"] = "Frostmire",
 }
 
+--====================--
+-- ZONE DISPLAY ORDER
+--====================--
+local ZoneOrder = {
+	"Forest",
+	"Taiga",
+	"Desert",
+	"Obsidian",
+	"Lava",
+	"Frostmire",
+}
+
 -- Display Name -> { ZoneFolder, ZoneFolder, ... }
 local function BuildZoneGroups()
 	local groups = {}
@@ -94,12 +106,14 @@ local ZoneGroups = BuildZoneGroups()
 -- For UI Dropdown
 local function GetAllZones()
 	local list = {}
-	for displayName, _ in pairs(ZoneGroups) do
-		table.insert(list, displayName)
+	for _, displayName in ipairs(ZoneOrder) do
+		if ZoneGroups[displayName] then
+			table.insert(list, displayName)
+		end
 	end
-	table.sort(list)
 	return list
 end
+
 
 -- Get zone group by display name
 local function GetZoneGroup(displayName)
