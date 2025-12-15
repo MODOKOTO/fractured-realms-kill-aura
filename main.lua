@@ -1,5 +1,5 @@
 --====================================================--
--- Fractured Realms - Stable Minion Kill Aura (FINAL)
+--  Fractured Realms - Universal Minion Kill Aura
 --====================================================--
 
 --====================--
@@ -11,59 +11,81 @@ local UIS = game:GetService("UserInputService")
 local Client = Players.LocalPlayer
 
 --====================--
--- CONFIG (DO NOT REMOVE)
+-- CONFIG
 --====================--
-getgenv().KillAura = false
-getgenv().AuraRange = 20
+getgenv().AuraRange = 25
 getgenv().HitAmount = 5
+getgenv().KillAura = false
+
+getgenv().AutoSwitchTarget = true
+getgenv().SwitchInterval = 3
 
 getgenv().InfinityFollowerHP = false
+getgenv().PlayerSpeed = 16
+getgenv().PlayerJump = 50
 
-getgenv().SpeedHack = false
-getgenv().PlayerSpeed = 24
-
-getgenv().JumpHack = false
-getgenv().JumpPower = 70
-
+-- Keybind
 getgenv().KillAuraKey = Enum.KeyCode.Q
+
+-- Follower safety distance (แก้ยึกยัก UID ซ้ำ)
+local FOLLOWER_ATTACK_DISTANCE = 12
 
 --====================--
 -- STATE
 --====================--
 local AuraTarget = nil
-local LastTargetChange = 0
-local TARGET_SWITCH_COOLDOWN = 0.35
+local LastSwitchTime = 0
 
 --====================--
 -- UTILS
 --====================--
-local function IsInNPCFolder(model)
-	local npc = workspace:FindFirstChild("NPCS")
-	return npc and model:IsDescendantOf(npc)
+local function Notify(text)
+	pcall(function()
+		game.StarterGui:SetCore("SendNotification", {
+			Title = "Kill Aura",
+			Text = text,
+			Duration = 2
+		})
+	end)
 end
 
+--====================--
+-- ENEMY VALIDATION
+--====================--
 local function IsEnemyDead(enemy)
 	if not enemy or not enemy.Parent then return true end
+
 	local hum = enemy:FindFirstChildOfClass("Humanoid")
 	if not hum or hum.Health <= 0 then return true end
 	if enemy:GetAttribute("Dead") == true then return true end
+
 	return false
 end
 
 --====================--
--- COLLECT ENEMIES
+-- EXCLUDED NPCS
+--====================--
+local function IsNPCExcluded(enemy)
+	local npcFolder = workspace:FindFirstChild("NPCS")
+	if npcFolder and enemy:IsDescendantOf(npcFolder) then
+		return true
+	end
+	return false
+end
+
+--====================--
+-- COLLECT ALL ENEMIES
 --====================--
 local function GetAllEnemies()
-	local list = {}
+	local enemies = {}
 
 	local function scan(container)
 		if not container then return end
 		for _, obj in ipairs(container:GetDescendants()) do
 			if obj:IsA("Model")
 				and obj:FindFirstChildOfClass("Humanoid")
-				and not IsInNPCFolder(obj)
-			then
-				table.insert(list, obj)
+				and not IsNPCExcluded(obj) then
+				table.insert(enemies, obj)
 			end
 		end
 	end
@@ -80,10 +102,8 @@ local function GetAllEnemies()
 	end
 
 	scan(workspace:FindFirstChild("Seraphim_Fight"))
-	scan(workspace:FindFirstChild("Scarab"))
-	scan(workspace:FindFirstChild("Sentinel"))
 
-	return list
+	return enemies
 end
 
 --====================--
@@ -101,6 +121,7 @@ local function GetNearestEnemy()
 	for _, enemy in ipairs(GetAllEnemies()) do
 		local hum = enemy:FindFirstChildOfClass("Humanoid")
 		local hrp = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
+
 		if hum and hrp and hum.Health > 0 then
 			local dist = (hrp.Position - root.Position).Magnitude
 			if dist <= getgenv().AuraRange and dist < closest then
@@ -114,13 +135,37 @@ local function GetNearestEnemy()
 end
 
 --====================--
+-- FOLLOWER DISTANCE CHECK
+--====================--
+local function AnyFollowerNearEnemy(enemy)
+	if not enemy or not enemy.PrimaryPart then return false end
+
+	local pf = workspace:FindFirstChild("Player_Followers")
+	if not pf then return false end
+
+	local my = pf:FindFirstChild(Client.Name .. "_Followers")
+	if not my then return false end
+
+	for _, follower in ipairs(my:GetChildren()) do
+		local root = follower:FindFirstChild("HumanoidRootPart")
+		if root then
+			local dist = (root.Position - enemy.PrimaryPart.Position).Magnitude
+			if dist <= FOLLOWER_ATTACK_DISTANCE then
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
+--====================--
 -- COMMAND FOLLOWERS
 --====================--
 local function CommandFollowers(enemy)
 	if not enemy then return end
-	local remote = RS.Remotes.FollowerAttack.AssignTarget
 	for i = 1, getgenv().HitAmount do
-		remote:FireServer(enemy, true)
+		RS.Remotes.FollowerAttack.AssignTarget:FireServer(enemy, true)
 	end
 end
 
@@ -143,145 +188,62 @@ task.spawn(function()
 				end
 			end
 		end
-		task.wait(0.25)
+		task.wait(0.2)
 	end
 end)
 
 --====================--
--- PLAYER SPEED & JUMP
+-- PLAYER STATS
 --====================--
 task.spawn(function()
 	while true do
 		local char = Client.Character
-		local hum = char and char:FindFirstChildOfClass("Humanoid")
-		if hum then
-			if getgenv().SpeedHack then
+		if char then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
 				hum.WalkSpeed = getgenv().PlayerSpeed
-			end
-			if getgenv().JumpHack then
-				hum.JumpPower = getgenv().JumpPower
+				hum.JumpPower = getgenv().PlayerJump
 			end
 		end
-		task.wait(0.25)
+		task.wait(0.2)
 	end
 end)
 
 --====================--
--- KILL AURA LOOP (SMOOTH)
+-- KEYBIND (Q)
+--====================--
+UIS.InputBegan:Connect(function(input, gpe)
+	if gpe then return end
+	if input.KeyCode == getgenv().KillAuraKey then
+		getgenv().KillAura = not getgenv().KillAura
+		Notify(getgenv().KillAura and "Kill Aura : ON" or "Kill Aura : OFF")
+	end
+end)
+
+--====================--
+-- KILL AURA LOOP
 --====================--
 task.spawn(function()
 	while true do
 		if getgenv().KillAura then
+			local now = tick()
+
 			if IsEnemyDead(AuraTarget) then
-				if tick() - LastTargetChange >= TARGET_SWITCH_COOLDOWN then
+				AuraTarget = GetNearestEnemy()
+				LastSwitchTime = now
+			end
+
+			if getgenv().AutoSwitchTarget and AuraTarget then
+				if now - LastSwitchTime >= getgenv().SwitchInterval then
 					AuraTarget = GetNearestEnemy()
-					LastTargetChange = tick()
+					LastSwitchTime = now
 				end
 			end
 
-			if AuraTarget then
+			if AuraTarget and AnyFollowerNearEnemy(AuraTarget) then
 				CommandFollowers(AuraTarget)
 			end
 		end
 		task.wait(0.1)
-	end
-end)
-
---====================--
--- UI (Rayfield)
---====================--
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
-
-local Window = Rayfield:CreateWindow({
-	Name = "Fractured Realms - Minion Aura",
-	ToggleUIKeybind = "K",
-})
-
-local Tab = Window:CreateTab("Main", "swords")
-
-Tab:CreateLabel("⚔️ Kill Aura")
-Tab:CreateLabel("Press [Q] to Toggle")
-
-Tab:CreateSlider({
-	Name = "Kill Aura Range",
-	Range = {5, 200},
-	Increment = 1,
-	CurrentValue = getgenv().AuraRange,
-	Callback = function(v)
-		getgenv().AuraRange = v
-	end,
-})
-
-Tab:CreateInput({
-	Name = "Hit Amount",
-	PlaceholderText = "Default = 5",
-	RemoveTextAfterFocusLost = false,
-	Callback = function(t)
-		getgenv().HitAmount = tonumber(t) or 5
-	end,
-})
-
-Tab:CreateToggle({
-	Name = "Infinity Follower HP",
-	CurrentValue = false,
-	Callback = function(v)
-		getgenv().InfinityFollowerHP = v
-	end,
-})
-
-Tab:CreateLabel("🏃 Player")
-
-Tab:CreateToggle({
-	Name = "Speed Hack",
-	CurrentValue = false,
-	Callback = function(v)
-		getgenv().SpeedHack = v
-	end,
-})
-
-Tab:CreateSlider({
-	Name = "Player Speed",
-	Range = {16, 100},
-	Increment = 1,
-	CurrentValue = getgenv().PlayerSpeed,
-	Callback = function(v)
-		getgenv().PlayerSpeed = v
-	end,
-})
-
-Tab:CreateToggle({
-	Name = "Jump Hack",
-	CurrentValue = false,
-	Callback = function(v)
-		getgenv().JumpHack = v
-	end,
-})
-
-Tab:CreateSlider({
-	Name = "Jump Power",
-	Range = {50, 150},
-	Increment = 1,
-	CurrentValue = getgenv().JumpPower,
-	Callback = function(v)
-		getgenv().JumpPower = v
-	end,
-})
-
---====================--
--- KEYBIND
---====================--
-UIS.InputBegan:Connect(function(input, gp)
-	if gp then return end
-	if input.KeyCode == getgenv().KillAuraKey then
-		getgenv().KillAura = not getgenv().KillAura
-		if not getgenv().KillAura then
-			AuraTarget = nil
-		end
-
-		Rayfield:Notify({
-			Title = "Kill Aura",
-			Content = getgenv().KillAura and "ENABLED" or "DISABLED",
-			Duration = 2
-		})
 	end
 end)
