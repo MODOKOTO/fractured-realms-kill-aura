@@ -1,5 +1,5 @@
 --====================================================--
--- Fractured Realms - Stable Minion Kill Aura (FINAL+)
+-- Fractured Realms - Hybrid Minion Kill Aura (PRO)
 --====================================================--
 
 --====================--
@@ -27,15 +27,12 @@ getgenv().JumpPower = 70
 
 getgenv().KillAuraKey = Enum.KeyCode.Q
 
--- 🔧 follower ต้องเข้าใกล้ก่อนถึงจะ KillAura
-local FOLLOWER_ATTACK_DISTANCE = 12
-
 --====================--
 -- STATE
 --====================--
 local AuraTarget = nil
-local LastTargetChange = 0
-local TARGET_SWITCH_COOLDOWN = 0.35
+local LastAssign = 0
+local ASSIGN_COOLDOWN = 0.6
 
 --====================--
 -- UTILS
@@ -50,32 +47,6 @@ local function IsEnemyDead(enemy)
 	local hum = enemy:FindFirstChildOfClass("Humanoid")
 	if not hum or hum.Health <= 0 then return true end
 	if enemy:GetAttribute("Dead") == true then return true end
-	return false
-end
-
---====================--
--- CHECK FOLLOWER DISTANCE (ADDED)
---====================--
-local function IsFollowerNearEnemy(enemy)
-	if not enemy then return false end
-	local eRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
-	if not eRoot then return false end
-
-	local pf = workspace:FindFirstChild("Player_Followers")
-	if not pf then return false end
-
-	local my = pf:FindFirstChild(Client.Name .. "_Followers")
-	if not my then return false end
-
-	for _, minion in ipairs(my:GetChildren()) do
-		local hrp = minion:FindFirstChild("HumanoidRootPart")
-		if hrp then
-			if (hrp.Position - eRoot.Position).Magnitude <= FOLLOWER_ATTACK_DISTANCE then
-				return true
-			end
-		end
-	end
-
 	return false
 end
 
@@ -143,14 +114,23 @@ local function GetNearestEnemy()
 end
 
 --====================--
--- COMMAND FOLLOWERS
+-- AUTO ATTACK (SERVER AI)
 --====================--
-local function CommandFollowers(enemy)
+local function EnableAutoAttack()
+	pcall(function()
+		RS.Remotes.FollowerAttack.AutoAttack:FireServer(true)
+	end)
+end
+
+--====================--
+-- ASSIGN TARGET (SMART)
+--====================--
+local function AssignTarget(enemy)
 	if not enemy then return end
-	local remote = RS.Remotes.FollowerAttack.AssignTarget
-	for i = 1, getgenv().HitAmount do
-		remote:FireServer(enemy, true)
-	end
+	if tick() - LastAssign < ASSIGN_COOLDOWN then return end
+	LastAssign = tick()
+
+	RS.Remotes.FollowerAttack.AssignTarget:FireServer(enemy, true)
 end
 
 --====================--
@@ -196,29 +176,27 @@ task.spawn(function()
 end)
 
 --====================--
--- KILL AURA LOOP (FIXED)
+-- KILL AURA LOOP (HYBRID)
 --====================--
 task.spawn(function()
 	while true do
 		if getgenv().KillAura then
+			EnableAutoAttack()
+
 			if IsEnemyDead(AuraTarget) then
-				if tick() - LastTargetChange >= TARGET_SWITCH_COOLDOWN then
-					AuraTarget = GetNearestEnemy()
-					LastTargetChange = tick()
-				end
+				AuraTarget = GetNearestEnemy()
 			end
 
-			-- ✅ ยิงเฉพาะตอน follower อยู่ใกล้
-			if AuraTarget and IsFollowerNearEnemy(AuraTarget) then
-				CommandFollowers(AuraTarget)
+			if AuraTarget then
+				AssignTarget(AuraTarget)
 			end
 		end
-		task.wait(0.1)
+		task.wait(0.15)
 	end
 end)
 
 --====================--
--- UI (Rayfield) [UNCHANGED]
+-- UI (UNCHANGED)
 --====================--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
@@ -243,12 +221,10 @@ Tab:CreateSlider({
 })
 
 Tab:CreateInput({
-	Name = "Hit Amount",
-	PlaceholderText = "Default = 5",
+	Name = "Hit Amount (Visual)",
+	PlaceholderText = "Server Controlled",
 	RemoveTextAfterFocusLost = false,
-	Callback = function(t)
-		getgenv().HitAmount = tonumber(t) or 5
-	end,
+	Callback = function() end
 })
 
 Tab:CreateToggle({
@@ -259,8 +235,6 @@ Tab:CreateToggle({
 	end,
 })
 
-Tab:CreateLabel("🏃 Player")
-
 Tab:CreateToggle({
 	Name = "Speed Hack",
 	CurrentValue = false,
@@ -269,31 +243,11 @@ Tab:CreateToggle({
 	end,
 })
 
-Tab:CreateSlider({
-	Name = "Player Speed",
-	Range = {16, 100},
-	Increment = 1,
-	CurrentValue = getgenv().PlayerSpeed,
-	Callback = function(v)
-		getgenv().PlayerSpeed = v
-	end,
-})
-
 Tab:CreateToggle({
 	Name = "Jump Hack",
 	CurrentValue = false,
 	Callback = function(v)
 		getgenv().JumpHack = v
-	end,
-})
-
-Tab:CreateSlider({
-	Name = "Jump Power",
-	Range = {50, 150},
-	Increment = 1,
-	CurrentValue = getgenv().JumpPower,
-	Callback = function(v)
-		getgenv().JumpPower = v
 	end,
 })
 
@@ -310,7 +264,7 @@ UIS.InputBegan:Connect(function(input, gp)
 
 		Rayfield:Notify({
 			Title = "Kill Aura",
-			Content = getgenv().KillAura and "ENABLED" or "DISABLED",
+			Content = getgenv().KillAura and "ENABLED (Hybrid)" or "DISABLED",
 			Duration = 2
 		})
 	end
