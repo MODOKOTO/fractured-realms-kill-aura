@@ -478,6 +478,10 @@ ZoneDropdown = CombatTab:CreateDropdown({
 	Options = GetAllZones(),
 	CurrentOption = nil,
 	Callback = function(opt)
+		if typeof(opt) == "table" then
+			opt = opt[1]
+		end
+
 		local zoneFolder = GetZoneFolderByDisplay(opt)
 		getgenv().SelectedZone = zoneFolder
 		getgenv().SelectedEnemyName = nil
@@ -491,6 +495,7 @@ ZoneDropdown = CombatTab:CreateDropdown({
 		end
 	end,
 })
+
 
 -- ENEMY SELECT (DEPEND ON ZONE)
 EnemyDropdown = CombatTab:CreateDropdown({
@@ -531,7 +536,31 @@ CombatTab:CreateButton({
 	end,
 })
 
+CombatTab:CreateInput({
+	Name = "Warp Interval (Sec)",
+	PlaceholderText = "Default = 3",
+	RemoveTextAfterFocusLost = false,
+	Callback = function(t)
+		local v = tonumber(t)
+		if v and v >= 0.2 then
+			getgenv().PlayerWarpInterval = v
+		end
+	end,
+})
 
+CombatTab:CreateToggle({
+	Name = "Player Warp To Enemy",
+	CurrentValue = getgenv().PlayerWarpEnemy,
+	Callback = function(v)
+		getgenv().PlayerWarpEnemy = v
+
+		Rayfield:Notify({
+			Title = "Player Warp",
+			Content = v and "ON" or "OFF",
+			Duration = 2,
+		})
+	end,
+})
 
 --====================--
 -- FOLLOWERS TAB
