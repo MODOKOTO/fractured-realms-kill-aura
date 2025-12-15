@@ -39,6 +39,29 @@ local AuraTarget = nil
 local LastSwitchTime = 0
 
 --====================--
+-- PLAYER WARP TO ENEMY
+--====================--
+getgenv().PlayerWarpEnemy = false
+getgenv().PlayerWarpInterval = 3
+getgenv().SelectedEnemyName = nil
+
+--====================--
+-- ZONE NAME MAP
+--====================--
+local ZoneNameMap = {
+	["Zone2"]  = "Forest",
+	["Zone3"]  = "Taiga",
+	["Zone4"]  = "Taiga",
+	["Zone5"]  = "Taiga",
+	["Zone6"]  = "Desert",
+	["Zone7"]  = "Desert",
+	["Zone8"]  = "Desert",
+	["Zone9"]  = "Obsidian",
+	["Zone10"] = "Lava",
+	["Zone11"] = "Frostmire",
+}
+
+--====================--
 -- ENEMY DEAD CHECK
 --====================--
 local function IsEnemyDead(enemy)
@@ -93,6 +116,64 @@ local function GetNearestEnemy()
 		end
 	end
 	return nearest
+end
+
+--====================--
+-- PLAYER WARP
+--====================--
+
+local function GetClickCoinEnemies()
+	local result = {}
+	local nameSet = {}
+
+	local root = workspace:FindFirstChild("ClickCoins")
+	if not root then return result end
+
+	for _, zone in ipairs(root:GetChildren()) do
+		if zone:IsA("Folder") then
+			for _, enemy in ipairs(zone:GetChildren()) do
+				if enemy:IsA("Model") and enemy:FindFirstChildOfClass("Humanoid") then
+					local name = enemy.Name
+					if not nameSet[name] then
+						nameSet[name] = true
+						table.insert(result, name)
+					end
+				end
+			end
+		end
+	end
+	return result
+end
+
+local function GetEnemyInstancesByName(enemyName)
+	local list = {}
+	local root = workspace:FindFirstChild("ClickCoins")
+	if not root then return list end
+
+	for _, zone in ipairs(root:GetChildren()) do
+		if zone:IsA("Folder") then
+			for _, enemy in ipairs(zone:GetChildren()) do
+				if enemy:IsA("Model")
+					and enemy.Name == enemyName
+					and enemy:FindFirstChildOfClass("Humanoid") then
+					table.insert(list, enemy)
+				end
+			end
+		end
+	end
+	return list
+end
+
+local function WarpPlayerToEnemy(enemy)
+	local char = Client.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	local enemyRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
+	if not enemyRoot then return end
+
+	hrp.CFrame = enemyRoot.CFrame * CFrame.new(0, 0, -5)
 end
 
 --====================--
@@ -316,6 +397,42 @@ CombatTab:CreateSlider({
 	end,
 })
 
+CombatTab:CreateLabel("Player Warp To Enemy")
+
+CombatTab:CreateDropdown({
+	Name = "Select Enemy",
+	Options = GetClickCoinEnemies(),
+	CurrentOption = nil,
+	Callback = function(opt)
+		if typeof(opt) == "table" then
+			getgenv().SelectedEnemyName = opt[1]
+		else
+			getgenv().SelectedEnemyName = opt
+		end
+	end,
+})
+
+CombatTab:CreateInput({
+	Name = "Warp Interval (Sec)",
+	PlaceholderText = "Default = 3",
+	RemoveTextAfterFocusLost = false,
+	Callback = function(t)
+		local v = tonumber(t)
+		if v and v >= 0.2 then
+			getgenv().PlayerWarpInterval = v
+		end
+	end,
+})
+
+CombatTab:CreateToggle({
+	Name = "Player Warp To Enemy",
+	CurrentValue = getgenv().PlayerWarpEnemy,
+	Callback = function(v)
+		getgenv().PlayerWarpEnemy = v
+	end,
+})
+
+
 --====================--
 -- FOLLOWERS TAB
 --====================--
@@ -421,3 +538,22 @@ task.spawn(function()
 		task.wait(0.1)
 	end
 end)
+--====================--
+-- PLAYER WARP LOOP
+--====================--
+task.spawn(function()
+	while true do
+		if getgenv().PlayerWarpEnemy and getgenv().SelectedEnemyName then
+			local enemies = GetEnemyInstancesByName(getgenv().SelectedEnemyName)
+			for _, enemy in ipairs(enemies) do
+				if not getgenv().PlayerWarpEnemy then break end
+				if not IsEnemyDead(enemy) then
+					WarpPlayerToEnemy(enemy)
+					task.wait(getgenv().PlayerWarpInterval)
+				end
+			end
+		end
+		task.wait(0.2)
+	end
+end)
+
