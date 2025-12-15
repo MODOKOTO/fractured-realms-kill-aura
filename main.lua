@@ -52,8 +52,10 @@ getgenv().PlayerWarpInterval = 3
 getgenv().SelectedEnemyName = nil
 
 --====================--
--- ZONE NAME MAP
+-- ZONE GROUP SYSTEM
 --====================--
+
+-- ZoneID -> Display Name
 local ZoneNameMap = {
 	["Zone2"]  = "Forest",
 	["Zone3"]  = "Taiga",
@@ -67,67 +69,83 @@ local ZoneNameMap = {
 	["Zone11"] = "Frostmire",
 }
 
---====================--
--- GET ALL ZONES
---====================--
-local function GetAllZones()
-	local zones = {}
+-- Display Name -> { ZoneFolder, ZoneFolder, ... }
+local function BuildZoneGroups()
+	local groups = {}
 	local root = workspace:FindFirstChild("ClickCoins")
-	if not root then return zones end
+	if not root then return groups end
 
 	for _, zone in ipairs(root:GetChildren()) do
 		if zone:IsA("Folder") then
-			local displayName = ZoneNameMap[zone.Name] or zone.Name
-			table.insert(zones, displayName .. " (" .. zone.Name .. ")")
+			local display = ZoneNameMap[zone.Name]
+			if display then
+				groups[display] = groups[display] or {}
+				table.insert(groups[display], zone)
+			end
 		end
 	end
-	return zones
+
+	return groups
 end
 
---====================--
--- GET ZONE FOLDER BY UI NAME
---====================--
-local function GetZoneFolderByDisplay(display)
-	if not display then return nil end
-	local zoneId = display:match("%((.-)%)")
-	if not zoneId then return nil end
-	local root = workspace:FindFirstChild("ClickCoins")
-	return root and root:FindFirstChild(zoneId)
+-- Cache
+local ZoneGroups = BuildZoneGroups()
+
+-- For UI Dropdown
+local function GetAllZones()
+	local list = {}
+	for displayName, _ in pairs(ZoneGroups) do
+		table.insert(list, displayName)
+	end
+	table.sort(list)
+	return list
 end
+
+-- Get zone group by display name
+local function GetZoneGroup(displayName)
+	return ZoneGroups[displayName]
+end
+
 
 --====================--
 -- GET ENEMIES IN ZONE
 --====================--
-local function GetEnemiesInZone(zoneFolder)
+local function GetEnemiesInZone(zoneGroup)
 	local list = {}
 	local used = {}
-	if not zoneFolder then return list end
+	if not zoneGroup then return list end
 
-	for _, enemy in ipairs(zoneFolder:GetChildren()) do
-		if enemy:IsA("Model") and enemy:FindFirstChildOfClass("Humanoid") then
-			if not used[enemy.Name] then
-				used[enemy.Name] = true
-				table.insert(list, enemy.Name)
+	for _, zoneFolder in ipairs(zoneGroup) do
+		for _, enemy in ipairs(zoneFolder:GetChildren()) do
+			if enemy:IsA("Model") and enemy:FindFirstChildOfClass("Humanoid") then
+				if not used[enemy.Name] then
+					used[enemy.Name] = true
+					table.insert(list, enemy.Name)
+				end
 			end
 		end
 	end
+
 	return list
 end
 
 --====================--
 -- GET ENEMY INSTANCES (ZONE + NAME)
 --====================--
-local function GetEnemyInstancesByZone(zoneFolder, enemyName)
+local function GetEnemyInstancesByZone(zoneGroup, enemyName)
 	local result = {}
-	if not zoneFolder or not enemyName then return result end
+	if not zoneGroup or not enemyName then return result end
 
-	for _, enemy in ipairs(zoneFolder:GetChildren()) do
-		if enemy:IsA("Model")
-			and enemy.Name == enemyName
-			and enemy:FindFirstChildOfClass("Humanoid") then
-			table.insert(result, enemy)
+	for _, zoneFolder in ipairs(zoneGroup) do
+		for _, enemy in ipairs(zoneFolder:GetChildren()) do
+			if enemy:IsA("Model")
+				and enemy.Name == enemyName
+				and enemy:FindFirstChildOfClass("Humanoid") then
+				table.insert(result, enemy)
+			end
 		end
 	end
+
 	return result
 end
 
@@ -482,12 +500,12 @@ ZoneDropdown = CombatTab:CreateDropdown({
 			opt = opt[1]
 		end
 
-		local zoneFolder = GetZoneFolderByDisplay(opt)
-		getgenv().SelectedZone = zoneFolder
+		local zoneGroup = GetZoneGroup(opt)
+		getgenv().SelectedZone = zoneGroup
 		getgenv().SelectedEnemyName = nil
 
-		if zoneFolder then
-			local enemies = GetEnemiesInZone(zoneFolder)
+		if zoneGroup then
+			local enemies = GetEnemiesInZone(zoneGroup)
 			getgenv().ZoneEnemyCache = enemies
 			if EnemyDropdown then
 				EnemyDropdown:Refresh(enemies)
