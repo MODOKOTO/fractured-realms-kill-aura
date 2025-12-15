@@ -39,6 +39,12 @@ local AuraTarget = nil
 local LastSwitchTime = 0
 
 --====================--
+-- COMBAT STATE
+--====================--
+local IsWarping = false
+local LastCombatTarget = nil
+
+--====================--
 -- ZONE / ENEMY SELECT
 --====================--
 getgenv().SelectedZone = nil
@@ -221,6 +227,32 @@ local function GetNearestEnemy()
 end
 
 --====================--
+-- NEAREST ENEMY TO PLAYER (FOR WARP MODE)
+--====================--
+local function GetNearestEnemyToPlayer()
+	local char = Client.Character
+	if not char then return nil end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not root then return nil end
+
+	local nearest, distMin = nil, math.huge
+
+	for _, enemy in ipairs(GetAllEnemies()) do
+		local hrp = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
+		local hum = enemy:FindFirstChildOfClass("Humanoid")
+		if hrp and hum and hum.Health > 0 then
+			local dist = (hrp.Position - root.Position).Magnitude
+			if dist < distMin and dist <= getgenv().AuraRange then
+				distMin = dist
+				nearest = enemy
+			end
+		end
+	end
+
+	return nearest
+end
+
+--====================--
 -- PLAYER WARP
 --====================--
 
@@ -300,19 +332,42 @@ local function WarpFollowersToEnemy(enemy)
 end
 
 --====================--
--- COMMAND FOLLOWERS
+-- WARP FOLLOWERS TO PLAYER
+--====================--
+local function WarpFollowersToPlayer()
+	local char = Client.Character
+	if not char then return end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+
+	local pf = workspace:FindFirstChild("Player_Followers")
+	if not pf then return end
+	local my = pf:FindFirstChild(Client.Name .. "_Followers")
+	if not my then return end
+
+	for _, minion in ipairs(my:GetChildren()) do
+		local hrp = minion:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.CFrame = root.CFrame * CFrame.new(math.random(-4,4), 0, math.random(-4,4))
+		end
+	end
+end
+
+--====================--
+-- COMMAND FOLLOWERS (COMBAT POWER)
 --====================--
 local function CommandFollowers(enemy)
-	if not enemy then return end
+	if not enemy or IsWarping then return end
+	if enemy == LastCombatTarget then return end
+	LastCombatTarget = enemy
 
-	if getgenv().FollowerWarpAttack then
-		WarpFollowersToEnemy(enemy)
-	end
+	local hits = math.clamp(tonumber(getgenv().HitAmount) or 1, 1, 1000)
 
-	for i = 1, getgenv().HitAmount do
+	for i = 1, hits do
 		RS.Remotes.FollowerAttack.AssignTarget:FireServer(enemy, true)
 	end
 end
+
 
 --====================--
 -- INFINITY FOLLOWER HP
@@ -677,18 +732,20 @@ GraphicsTab:CreateToggle({
 --====================--
 task.spawn(function()
 	while true do
-		if getgenv().KillAura then
+		if getgenv().KillAura and not IsWarping then
 			local now = tick()
 
 			if IsEnemyDead(AuraTarget) then
 				AuraTarget = GetNearestEnemy()
 				LastSwitchTime = now
+				LastCombatTarget = nil
 			end
 
 			if getgenv().AutoSwitchTarget and AuraTarget then
 				if now - LastSwitchTime >= getgenv().SwitchInterval then
 					AuraTarget = GetNearestEnemy()
 					LastSwitchTime = now
+					LastCombatTarget = nil
 				end
 			end
 
@@ -699,8 +756,9 @@ task.spawn(function()
 		task.wait(0.1)
 	end
 end)
+
 --====================--
--- PLAYER WARP LOOP
+-- PLAYER WARP LOOP (SAFE COMBAT)
 --====================--
 task.spawn(function()
 	while true do
@@ -715,10 +773,39 @@ task.spawn(function()
 
 			for _, enemy in ipairs(enemies) do
 				if not getgenv().PlayerWarpEnemy then break end
-				if not IsEnemyDead(enemy) then
-					WarpPlayerToEnemy(enemy)
-					task.wait(getgenv().PlayerWarpInterval)
+				if IsEnemyDead(enemy) then continue end
+
+				-- 🔒 LOCK COMBAT
+				IsWarping = true
+				LastCombatTarget = nil
+
+				-- 1️⃣ Warp Player
+				WarpPlayerToEnemy(enemy)
+
+				-- 2️⃣ Warp Followers (เฉพาะเมื่อเปิด)
+				if getgenv().FollowerWarpAttack then
+					WarpFollowersToPlayer()
 				end
+
+
+				-- รอให้ตำแหน่งนิ่ง (กันตีตัวเก่า)
+				task.wait(0.25)
+
+				-- 🔓 UNLOCK COMBAT
+				IsWarping = false
+
+				task.wait(0.05) -- กันเฟรมชน
+
+				-- 3️⃣ หา Enemy ใหม่ใกล้ Player
+				if not getgenv().PlayerWarpEnemy then continue end
+
+				local newTarget = GetNearestEnemyToPlayer()
+				if newTarget then
+					LastCombatTarget = nil
+					CommandFollowers(newTarget)
+				end
+					
+				task.wait(getgenv().PlayerWarpInterval or 0.5)
 			end
 		end
 		task.wait(0.2)
