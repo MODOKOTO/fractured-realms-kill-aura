@@ -777,7 +777,9 @@ task.spawn(function()
 
 				-- 🔒 LOCK COMBAT
 				IsWarping = true
-				LastCombatTarget = nil
+				if IsWarping then
+					LastCombatTarget = nil
+				end
 
 				-- 1️⃣ Warp Player
 				WarpPlayerToEnemy(enemy)
@@ -798,13 +800,23 @@ task.spawn(function()
 
 				-- 3️⃣ หา Enemy ใหม่ใกล้ Player
 				if not getgenv().PlayerWarpEnemy then continue end
-
+				
 				local newTarget = GetNearestEnemyToPlayer()
-				if newTarget then
+				if not newTarget then
+					task.wait(getgenv().PlayerWarpInterval or 0.5)
+					continue
+				end
+				
+				local attackDuration = 0.6
+				local start = tick()
+				
+				while tick() - start < attackDuration do
+					if IsEnemyDead(newTarget) then break end
 					LastCombatTarget = nil
 					CommandFollowers(newTarget)
+					task.wait(0.1)
 				end
-					
+							
 				task.wait(getgenv().PlayerWarpInterval or 0.5)
 			end
 		end
