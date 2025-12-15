@@ -356,18 +356,34 @@ end
 --====================--
 -- COMMAND FOLLOWERS (COMBAT POWER)
 --====================--
+local ActiveAttack = false
+
 local function CommandFollowers(enemy)
 	if not enemy or IsWarping then return end
-	if enemy == LastCombatTarget then return end
-	LastCombatTarget = enemy
+	if ActiveAttack then return end
 
-	local hits = math.clamp(tonumber(getgenv().HitAmount) or 1, 1, 1000)
+	ActiveAttack = true
 
-	for i = 1, hits do
-		RS.Remotes.FollowerAttack.AssignTarget:FireServer(enemy, true)
-	end
+	task.spawn(function()
+		while getgenv().KillAura do
+			if IsEnemyDead(enemy) then break end
+
+			local hits = math.clamp(
+				tonumber(getgenv().HitAmount) or 1,
+				1,
+				1000
+			)
+
+			for i = 1, hits do
+				RS.Remotes.FollowerAttack.AssignTarget:FireServer(enemy, true)
+			end
+
+			task.wait(0.15) -- ยิงซ้ำอัตโนมัติ
+		end
+
+		ActiveAttack = false
+	end)
 end
-
 
 --====================--
 -- INFINITY FOLLOWER HP
@@ -381,12 +397,21 @@ task.spawn(function()
 				if my then
 					for _, minion in ipairs(my:GetChildren()) do
 						local hum = minion:FindFirstChildOfClass("Humanoid")
-						if hum then hum.Health = hum.MaxHealth end
+						if hum then
+							-- 🔥 FORCE HEAL
+							hum.MaxHealth = hum.MaxHealth
+							hum.Health = hum.MaxHealth
+
+							-- 🛡️ กันโดน kill frame เดียว
+							if hum.Health < hum.MaxHealth then
+								hum.Health = hum.MaxHealth
+							end
+						end
 					end
 				end
 			end
 		end
-		task.wait(0.2)
+		task.wait(0.05) -- ยิงถี่ขึ้น
 	end
 end)
 
