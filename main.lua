@@ -39,6 +39,12 @@ local AuraTarget = nil
 local LastSwitchTime = 0
 
 --====================--
+-- ZONE / ENEMY SELECT
+--====================--
+getgenv().SelectedZone = nil
+getgenv().ZoneEnemyCache = {}
+
+--====================--
 -- PLAYER WARP TO ENEMY
 --====================--
 getgenv().PlayerWarpEnemy = false
@@ -60,6 +66,70 @@ local ZoneNameMap = {
 	["Zone10"] = "Lava",
 	["Zone11"] = "Frostmire",
 }
+
+--====================--
+-- GET ALL ZONES
+--====================--
+local function GetAllZones()
+	local zones = {}
+	local root = workspace:FindFirstChild("ClickCoins")
+	if not root then return zones end
+
+	for _, zone in ipairs(root:GetChildren()) do
+		if zone:IsA("Folder") then
+			local displayName = ZoneNameMap[zone.Name] or zone.Name
+			table.insert(zones, displayName .. " (" .. zone.Name .. ")")
+		end
+	end
+	return zones
+end
+
+--====================--
+-- GET ZONE FOLDER BY UI NAME
+--====================--
+local function GetZoneFolderByDisplay(display)
+	if not display then return nil end
+	local zoneId = display:match("%((.-)%)")
+	if not zoneId then return nil end
+	local root = workspace:FindFirstChild("ClickCoins")
+	return root and root:FindFirstChild(zoneId)
+end
+
+--====================--
+-- GET ENEMIES IN ZONE
+--====================--
+local function GetEnemiesInZone(zoneFolder)
+	local list = {}
+	local used = {}
+	if not zoneFolder then return list end
+
+	for _, enemy in ipairs(zoneFolder:GetChildren()) do
+		if enemy:IsA("Model") and enemy:FindFirstChildOfClass("Humanoid") then
+			if not used[enemy.Name] then
+				used[enemy.Name] = true
+				table.insert(list, enemy.Name)
+			end
+		end
+	end
+	return list
+end
+
+--====================--
+-- GET ENEMY INSTANCES (ZONE + NAME)
+--====================--
+local function GetEnemyInstancesByZone(zoneFolder, enemyName)
+	local result = {}
+	if not zoneFolder or not enemyName then return result end
+
+	for _, enemy in ipairs(zoneFolder:GetChildren()) do
+		if enemy:IsA("Model")
+			and enemy.Name == enemyName
+			and enemy:FindFirstChildOfClass("Humanoid") then
+			table.insert(result, enemy)
+		end
+	end
+	return result
+end
 
 --====================--
 -- ENEMY DEAD CHECK
@@ -397,11 +467,35 @@ CombatTab:CreateSlider({
 	end,
 })
 
-CombatTab:CreateLabel("Player Warp To Enemy")
+CombatTab:CreateLabel("Player Warp To Enemy (By Zone)")
 
-CombatTab:CreateDropdown({
+-- ZONE SELECT
+local ZoneDropdown
+local EnemyDropdown
+
+ZoneDropdown = CombatTab:CreateDropdown({
+	Name = "Select Zone",
+	Options = GetAllZones(),
+	CurrentOption = nil,
+	Callback = function(opt)
+		local zoneFolder = GetZoneFolderByDisplay(opt)
+		getgenv().SelectedZone = zoneFolder
+		getgenv().SelectedEnemyName = nil
+
+		if zoneFolder then
+			local enemies = GetEnemiesInZone(zoneFolder)
+			getgenv().ZoneEnemyCache = enemies
+			if EnemyDropdown then
+				EnemyDropdown:Refresh(enemies)
+			end
+		end
+	end,
+})
+
+-- ENEMY SELECT (DEPEND ON ZONE)
+EnemyDropdown = CombatTab:CreateDropdown({
 	Name = "Select Enemy",
-	Options = GetClickCoinEnemies(),
+	Options = {},
 	CurrentOption = nil,
 	Callback = function(opt)
 		if typeof(opt) == "table" then
@@ -412,25 +506,31 @@ CombatTab:CreateDropdown({
 	end,
 })
 
-CombatTab:CreateInput({
-	Name = "Warp Interval (Sec)",
-	PlaceholderText = "Default = 3",
-	RemoveTextAfterFocusLost = false,
-	Callback = function(t)
-		local v = tonumber(t)
-		if v and v >= 0.2 then
-			getgenv().PlayerWarpInterval = v
+-- RESET / REFRESH BUTTON
+CombatTab:CreateButton({
+	Name = "🔄 Reset / Refresh Enemies",
+	Callback = function()
+		if getgenv().SelectedZone then
+			local enemies = GetEnemiesInZone(getgenv().SelectedZone)
+			getgenv().ZoneEnemyCache = enemies
+			getgenv().SelectedEnemyName = nil
+			EnemyDropdown:Refresh(enemies)
+
+			Rayfield:Notify({
+				Title = "Enemy Refresh",
+				Content = "Reloaded enemies in zone",
+				Duration = 2,
+			})
+		else
+			Rayfield:Notify({
+				Title = "Enemy Refresh",
+				Content = "Please select zone first",
+				Duration = 2,
+			})
 		end
 	end,
 })
 
-CombatTab:CreateToggle({
-	Name = "Player Warp To Enemy",
-	CurrentValue = getgenv().PlayerWarpEnemy,
-	Callback = function(v)
-		getgenv().PlayerWarpEnemy = v
-	end,
-})
 
 
 --====================--
@@ -543,8 +643,15 @@ end)
 --====================--
 task.spawn(function()
 	while true do
-		if getgenv().PlayerWarpEnemy and getgenv().SelectedEnemyName then
-			local enemies = GetEnemyInstancesByName(getgenv().SelectedEnemyName)
+		if getgenv().PlayerWarpEnemy
+			and getgenv().SelectedZone
+			and getgenv().SelectedEnemyName then
+
+			local enemies = GetEnemyInstancesByZone(
+				getgenv().SelectedZone,
+				getgenv().SelectedEnemyName
+			)
+
 			for _, enemy in ipairs(enemies) do
 				if not getgenv().PlayerWarpEnemy then break end
 				if not IsEnemyDead(enemy) then
