@@ -1,5 +1,5 @@
 --====================================================--
--- Fractured Realms - Stable Minion Kill Aura (FULL)
+-- Fractured Realms - Stable Minion Kill Aura (FINAL)
 --====================================================--
 
 --====================--
@@ -13,9 +13,9 @@ local Client = Players.LocalPlayer
 --====================--
 -- CONFIG (DO NOT REMOVE)
 --====================--
+getgenv().KillAura = false
 getgenv().AuraRange = 20
 getgenv().HitAmount = 5
-getgenv().KillAura = false
 
 getgenv().InfinityFollowerHP = false
 
@@ -44,20 +44,17 @@ end
 
 local function IsEnemyDead(enemy)
 	if not enemy or not enemy.Parent then return true end
-
 	local hum = enemy:FindFirstChildOfClass("Humanoid")
 	if not hum or hum.Health <= 0 then return true end
-
 	if enemy:GetAttribute("Dead") == true then return true end
-
 	return false
 end
 
 --====================--
--- COLLECT ALL ENEMIES
+-- COLLECT ENEMIES
 --====================--
 local function GetAllEnemies()
-	local enemies = {}
+	local list = {}
 
 	local function scan(container)
 		if not container then return end
@@ -66,7 +63,7 @@ local function GetAllEnemies()
 				and obj:FindFirstChildOfClass("Humanoid")
 				and not IsInNPCFolder(obj)
 			then
-				table.insert(enemies, obj)
+				table.insert(list, obj)
 			end
 		end
 	end
@@ -86,7 +83,7 @@ local function GetAllEnemies()
 	scan(workspace:FindFirstChild("Scarab"))
 	scan(workspace:FindFirstChild("Sentinel"))
 
-	return enemies
+	return list
 end
 
 --====================--
@@ -104,7 +101,6 @@ local function GetNearestEnemy()
 	for _, enemy in ipairs(GetAllEnemies()) do
 		local hum = enemy:FindFirstChildOfClass("Humanoid")
 		local hrp = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
-
 		if hum and hrp and hum.Health > 0 then
 			local dist = (hrp.Position - root.Position).Magnitude
 			if dist <= getgenv().AuraRange and dist < closest then
@@ -147,7 +143,7 @@ task.spawn(function()
 				end
 			end
 		end
-		task.wait(0.2)
+		task.wait(0.25)
 	end
 end)
 
@@ -166,7 +162,7 @@ task.spawn(function()
 				hum.JumpPower = getgenv().JumpPower
 			end
 		end
-		task.wait(0.2)
+		task.wait(0.25)
 	end
 end)
 
@@ -176,7 +172,6 @@ end)
 task.spawn(function()
 	while true do
 		if getgenv().KillAura then
-
 			if IsEnemyDead(AuraTarget) then
 				if tick() - LastTargetChange >= TARGET_SWITCH_COOLDOWN then
 					AuraTarget = GetNearestEnemy()
@@ -205,14 +200,16 @@ local Window = Rayfield:CreateWindow({
 local Tab = Window:CreateTab("Main", "swords")
 
 Tab:CreateLabel("⚔️ Kill Aura")
-Tab:CreateLabel("Press [Q] to Toggle Kill Aura")
+Tab:CreateLabel("Press [Q] to Toggle")
 
 Tab:CreateSlider({
 	Name = "Kill Aura Range",
 	Range = {5, 200},
 	Increment = 1,
 	CurrentValue = getgenv().AuraRange,
-	Callback = function(v) getgenv().AuraRange = v end,
+	Callback = function(v)
+		getgenv().AuraRange = v
+	end,
 })
 
 Tab:CreateInput({
@@ -227,7 +224,9 @@ Tab:CreateInput({
 Tab:CreateToggle({
 	Name = "Infinity Follower HP",
 	CurrentValue = false,
-	Callback = function(v) getgenv().InfinityFollowerHP = v end,
+	Callback = function(v)
+		getgenv().InfinityFollowerHP = v
+	end,
 })
 
 Tab:CreateLabel("🏃 Player")
@@ -235,7 +234,9 @@ Tab:CreateLabel("🏃 Player")
 Tab:CreateToggle({
 	Name = "Speed Hack",
 	CurrentValue = false,
-	Callback = function(v) getgenv().SpeedHack = v end,
+	Callback = function(v)
+		getgenv().SpeedHack = v
+	end,
 })
 
 Tab:CreateSlider({
@@ -243,13 +244,17 @@ Tab:CreateSlider({
 	Range = {16, 100},
 	Increment = 1,
 	CurrentValue = getgenv().PlayerSpeed,
-	Callback = function(v) getgenv().PlayerSpeed = v end,
+	Callback = function(v)
+		getgenv().PlayerSpeed = v
+	end,
 })
 
 Tab:CreateToggle({
 	Name = "Jump Hack",
 	CurrentValue = false,
-	Callback = function(v) getgenv().JumpHack = v end,
+	Callback = function(v)
+		getgenv().JumpHack = v
+	end,
 })
 
 Tab:CreateSlider({
@@ -257,11 +262,13 @@ Tab:CreateSlider({
 	Range = {50, 150},
 	Increment = 1,
 	CurrentValue = getgenv().JumpPower,
-	Callback = function(v) getgenv().JumpPower = v end,
+	Callback = function(v)
+		getgenv().JumpPower = v
+	end,
 })
 
 --====================--
--- KEYBIND (Q)
+-- KEYBIND
 --====================--
 UIS.InputBegan:Connect(function(input, gp)
 	if gp then return end
