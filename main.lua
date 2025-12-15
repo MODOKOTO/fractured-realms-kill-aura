@@ -184,12 +184,16 @@ CombatTab:CreateSlider({
 	Callback = function(v) getgenv().AuraRange = v end,
 })
 
-CombatTab:CreateSlider({
+CombatTab:CreateDropdown({
 	Name = "Hit Amount",
-	Range = {1, 20},
-	Increment = 1,
-	CurrentValue = getgenv().HitAmount,
-	Callback = function(v) getgenv().HitAmount = v end,
+	Options = {"x2", "x5", "x10", "x20", "x50", "x100", "x200", "x500"},
+	CurrentOption = "x5",
+	Callback = function(option)
+		local value = tonumber(option:match("%d+"))
+		if value then
+			getgenv().HitAmount = value
+		end
+	end,
 })
 
 CombatTab:CreateToggle({
