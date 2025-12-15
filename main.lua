@@ -1,6 +1,6 @@
 --====================================================--
--- Fractured Realms - Stable Minion Kill Aura (FINAL+)
--- Aggressive Server Damage Mode (NO REMOVE ANYTHING)
+-- Fractured Realms - Stable Minion Kill Aura (FINAL++)
+-- OLD LOGIC KILL AURA + FULL FEATURES (NO REMOVE)
 --====================================================--
 
 --====================--
@@ -28,7 +28,7 @@ getgenv().JumpPower = 70
 
 getgenv().KillAuraKey = Enum.KeyCode.Q
 
--- 🔥 NEW (แรง)
+-- Extra
 getgenv().AggressiveMode = true
 getgenv().FollowerAttackRange = 25
 
@@ -36,7 +36,6 @@ getgenv().FollowerAttackRange = 25
 -- STATE
 --====================--
 local AuraTarget = nil
-
 local AssignRemote = RS.Remotes.FollowerAttack.AssignTarget
 
 --====================--
@@ -119,7 +118,7 @@ local function GetNearestEnemy()
 end
 
 --====================--
--- FOLLOWER DIST CHECK
+-- FOLLOWER DIST CHECK (ANTI JITTER)
 --====================--
 local function AnyFollowerNear(enemy)
 	local pf = workspace:FindFirstChild("Player_Followers")
@@ -186,15 +185,19 @@ task.spawn(function()
 		local char = Client.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		if hum then
-			if getgenv().SpeedHack then hum.WalkSpeed = getgenv().PlayerSpeed end
-			if getgenv().JumpHack then hum.JumpPower = getgenv().JumpPower end
+			if getgenv().SpeedHack then
+				hum.WalkSpeed = getgenv().PlayerSpeed
+			end
+			if getgenv().JumpHack then
+				hum.JumpPower = getgenv().JumpPower
+			end
 		end
 		task.wait(0.25)
 	end
 end)
 
 --====================--
--- ✅ KILL AURA LOOP (OLD STABLE LOGIC)
+-- KILL AURA LOOP (OLD STABLE LOGIC)
 --====================--
 task.spawn(function()
 	while true do
@@ -212,17 +215,80 @@ task.spawn(function()
 end)
 
 --====================--
--- UI & KEYBIND (UNCHANGED)
+-- UI (Rayfield)
 --====================--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
-local Window = Rayfield:CreateWindow({ Name = "Fractured Realms - Minion Aura", ToggleUIKeybind = "K" })
+
+local Window = Rayfield:CreateWindow({
+	Name = "Fractured Realms - Minion Aura",
+	ToggleUIKeybind = "K",
+})
+
 local Tab = Window:CreateTab("Main", "swords")
 
 Tab:CreateLabel("⚔️ Kill Aura")
 Tab:CreateLabel("Press [Q] to Toggle")
 
--- (UI sliders / toggles เดิมอยู่ครบ)
+Tab:CreateSlider({
+	Name = "Kill Aura Range",
+	Range = {5, 200},
+	Increment = 1,
+	CurrentValue = getgenv().AuraRange,
+	Callback = function(v) getgenv().AuraRange = v end,
+})
 
+Tab:CreateInput({
+	Name = "Hit Amount",
+	PlaceholderText = "Default = 5",
+	RemoveTextAfterFocusLost = false,
+	Callback = function(t) getgenv().HitAmount = tonumber(t) or 5 end,
+})
+
+Tab:CreateToggle({
+	Name = "Aggressive Mode",
+	CurrentValue = getgenv().AggressiveMode,
+	Callback = function(v) getgenv().AggressiveMode = v end,
+})
+
+Tab:CreateToggle({
+	Name = "Infinity Follower HP",
+	CurrentValue = false,
+	Callback = function(v) getgenv().InfinityFollowerHP = v end,
+})
+
+Tab:CreateLabel("🏃 Player")
+
+Tab:CreateToggle({
+	Name = "Speed Hack",
+	CurrentValue = false,
+	Callback = function(v) getgenv().SpeedHack = v end,
+})
+
+Tab:CreateSlider({
+	Name = "Player Speed",
+	Range = {16, 100},
+	Increment = 1,
+	CurrentValue = getgenv().PlayerSpeed,
+	Callback = function(v) getgenv().PlayerSpeed = v end,
+})
+
+Tab:CreateToggle({
+	Name = "Jump Hack",
+	CurrentValue = false,
+	Callback = function(v) getgenv().JumpHack = v end,
+})
+
+Tab:CreateSlider({
+	Name = "Jump Power",
+	Range = {50, 150},
+	Increment = 1,
+	CurrentValue = getgenv().JumpPower,
+	Callback = function(v) getgenv().JumpPower = v end,
+})
+
+--====================--
+-- KEYBIND
+--====================--
 UIS.InputBegan:Connect(function(input, gp)
 	if gp then return end
 	if input.KeyCode == getgenv().KillAuraKey then
@@ -231,7 +297,7 @@ UIS.InputBegan:Connect(function(input, gp)
 
 		Rayfield:Notify({
 			Title = "Kill Aura",
-			Content = getgenv().KillAura and "ENABLED (STABLE)" or "DISABLED",
+			Content = getgenv().KillAura and "ENABLED" or "DISABLED",
 			Duration = 2
 		})
 	end
