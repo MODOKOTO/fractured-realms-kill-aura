@@ -777,22 +777,22 @@ task.spawn(function()
 
 				-- 🔒 LOCK COMBAT
 				IsWarping = true
-				if IsWarping then
-					LastCombatTarget = nil
-				end
-
+				LastCombatTarget = nil
+				
 				-- 1️⃣ Warp Player
 				WarpPlayerToEnemy(enemy)
-
-				-- 2️⃣ Warp Followers (เฉพาะเมื่อเปิด)
+				
+				-- ✅ รอให้ Player ตำแหน่งนิ่งจริง (สำคัญ)
+				task.wait(0.1)
+				
+				-- 2️⃣ Warp Followers มาหา Player ทันที
 				if getgenv().FollowerWarpAttack then
 					WarpFollowersToPlayer()
 				end
-
-
-				-- รอให้ตำแหน่งนิ่ง (กันตีตัวเก่า)
-				task.wait(0.25)
-
+				
+				-- ✅ รออีกนิดให้ Followers sync
+				task.wait(0.1)
+				
 				-- 🔓 UNLOCK COMBAT
 				IsWarping = false
 
