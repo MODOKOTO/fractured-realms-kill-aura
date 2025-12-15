@@ -13,7 +13,7 @@ local StarterGui = game:GetService("StarterGui")
 local Client = Players.LocalPlayer
 
 --====================--
--- CONFIG
+-- CONFIG (KEEP ALL)
 --====================--
 getgenv().AuraRange = 20
 getgenv().HitAmount = 5
@@ -23,7 +23,6 @@ getgenv().AutoSwitchTarget = false
 getgenv().SwitchInterval = 3
 getgenv().InfinityFollowerHP = false
 
--- Toggle Key
 getgenv().ToggleKey = Enum.KeyCode.Q
 
 --====================--
@@ -36,11 +35,13 @@ local LastSwitchTime = 0
 -- NOTIFY
 --====================--
 local function Notify(msg)
-	StarterGui:SetCore("SendNotification", {
-		Title = "Minion Kill Aura",
-		Text = msg,
-		Duration = 2
-	})
+	pcall(function()
+		StarterGui:SetCore("SendNotification", {
+			Title = "Minion Kill Aura",
+			Text = msg,
+			Duration = 2
+		})
+	end)
 end
 
 --====================--
@@ -55,7 +56,7 @@ local function IsEnemyDead(enemy)
 end
 
 --====================--
--- GET ALL ENEMIES (SAFE)
+-- GET ALL ENEMIES (SAFE & UNIVERSAL)
 --====================--
 local function GetAllEnemies()
 	local enemies = {}
@@ -68,15 +69,16 @@ local function GetAllEnemies()
 			local hum = obj:FindFirstChildOfClass("Humanoid")
 			if hum and hum.Health > 0 then
 
-				-- Ignore Player
+				-- ❌ Ignore Player Characters
 				if Players:GetPlayerFromCharacter(obj) then continue end
 
-				-- Ignore NPCS
+				-- ❌ Ignore NPC Folder
 				if npcFolder and obj:IsDescendantOf(npcFolder) then continue end
 
-				-- Ignore Followers
+				-- ❌ Ignore Followers
 				if followerFolder and obj:IsDescendantOf(followerFolder) then continue end
 
+				-- ✅ Valid Enemy
 				table.insert(enemies, obj)
 			end
 		end
@@ -86,7 +88,7 @@ local function GetAllEnemies()
 end
 
 --====================--
--- NEAREST ENEMY
+-- FIND NEAREST ENEMY
 --====================--
 local function GetNearestEnemy()
 	local char = Client.Character
@@ -98,9 +100,8 @@ local function GetNearestEnemy()
 	local nearest, closest = nil, math.huge
 
 	for _, enemy in ipairs(GetAllEnemies()) do
-		local hum = enemy:FindFirstChildOfClass("Humanoid")
 		local hrp = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
-		if hum and hrp then
+		if hrp then
 			local dist = (hrp.Position - root.Position).Magnitude
 			if dist <= getgenv().AuraRange and dist < closest then
 				closest = dist
@@ -113,12 +114,14 @@ local function GetNearestEnemy()
 end
 
 --====================--
--- COMMAND FOLLOWERS
+-- COMMAND FOLLOWERS (PURE)
 --====================--
+local AssignRemote = RS.Remotes.FollowerAttack.AssignTarget
+
 local function CommandFollowers(enemy)
 	if not enemy then return end
 	for i = 1, (getgenv().HitAmount or 5) do
-		RS.Remotes.FollowerAttack.AssignTarget:FireServer(enemy, true)
+		AssignRemote:FireServer(enemy, true)
 	end
 end
 
@@ -134,7 +137,9 @@ task.spawn(function()
 				if my then
 					for _, minion in ipairs(my:GetChildren()) do
 						local hum = minion:FindFirstChildOfClass("Humanoid")
-						if hum then hum.Health = hum.MaxHealth end
+						if hum then
+							hum.Health = hum.MaxHealth
+						end
 					end
 				end
 			end
@@ -144,7 +149,7 @@ task.spawn(function()
 end)
 
 --====================--
--- KEY TOGGLE
+-- KEY TOGGLE (Q)
 --====================--
 UIS.InputBegan:Connect(function(input, gp)
 	if gp then return end
@@ -173,37 +178,47 @@ Tab:CreateSlider({
 	Range = {5, 200},
 	Increment = 1,
 	CurrentValue = getgenv().AuraRange,
-	Callback = function(v) getgenv().AuraRange = v end,
+	Callback = function(v)
+		getgenv().AuraRange = v
+	end,
 })
 
 Tab:CreateInput({
 	Name = "Hit Amount",
 	PlaceholderText = "Default = 5",
 	RemoveTextAfterFocusLost = false,
-	Callback = function(t) getgenv().HitAmount = tonumber(t) or 5 end,
+	Callback = function(t)
+		getgenv().HitAmount = tonumber(t) or 5
+	end,
 })
 
 Tab:CreateToggle({
 	Name = "Auto Switch Target",
 	CurrentValue = false,
-	Callback = function(v) getgenv().AutoSwitchTarget = v end,
+	Callback = function(v)
+		getgenv().AutoSwitchTarget = v
+	end,
 })
 
 Tab:CreateInput({
 	Name = "Switch Interval (Sec)",
 	PlaceholderText = "Default = 3",
 	RemoveTextAfterFocusLost = false,
-	Callback = function(t) getgenv().SwitchInterval = tonumber(t) or 3 end,
+	Callback = function(t)
+		getgenv().SwitchInterval = tonumber(t) or 3
+	end,
 })
 
 Tab:CreateToggle({
 	Name = "Infinity Follower HP",
 	CurrentValue = false,
-	Callback = function(v) getgenv().InfinityFollowerHP = v end,
+	Callback = function(v)
+		getgenv().InfinityFollowerHP = v
+	end,
 })
 
 --====================--
--- MAIN LOOP
+-- MAIN LOOP (STABLE)
 --====================--
 task.spawn(function()
 	while true do
