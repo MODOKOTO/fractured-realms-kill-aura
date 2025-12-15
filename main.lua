@@ -215,53 +215,79 @@ task.spawn(function()
 end)
 
 --====================--
--- UI (Rayfield)
+-- UI (Rayfield - FIXED)
 --====================--
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+local Rayfield
+pcall(function()
+	Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+end)
+
+if not Rayfield then
+	warn("Rayfield failed to load")
+	return
+end
 
 local Window = Rayfield:CreateWindow({
 	Name = "Fractured Realms - Minion Aura",
+	LoadingTitle = "Fractured Realms",
+	LoadingSubtitle = "Stable Kill Aura",
 	ToggleUIKeybind = "K",
 })
 
 local Tab = Window:CreateTab("Main", "swords")
 
-Tab:CreateLabel("⚔️ Kill Aura")
-Tab:CreateLabel("Press [Q] to Toggle")
+-- STATUS LABEL (สำคัญ)
+local StatusLabel = Tab:CreateLabel("Kill Aura : OFF")
 
+--====================--
+-- KILL AURA UI
+--====================--
 Tab:CreateSlider({
 	Name = "Kill Aura Range",
 	Range = {5, 200},
 	Increment = 1,
 	CurrentValue = getgenv().AuraRange,
-	Callback = function(v) getgenv().AuraRange = v end,
+	Callback = function(v)
+		getgenv().AuraRange = v
+	end,
 })
 
 Tab:CreateInput({
 	Name = "Hit Amount",
 	PlaceholderText = "Default = 5",
 	RemoveTextAfterFocusLost = false,
-	Callback = function(t) getgenv().HitAmount = tonumber(t) or 5 end,
+	Callback = function(t)
+		getgenv().HitAmount = tonumber(t) or 5
+	end,
 })
 
 Tab:CreateToggle({
 	Name = "Aggressive Mode",
 	CurrentValue = getgenv().AggressiveMode,
-	Callback = function(v) getgenv().AggressiveMode = v end,
+	Callback = function(v)
+		getgenv().AggressiveMode = v
+	end,
 })
 
 Tab:CreateToggle({
 	Name = "Infinity Follower HP",
-	CurrentValue = false,
-	Callback = function(v) getgenv().InfinityFollowerHP = v end,
+	CurrentValue = getgenv().InfinityFollowerHP,
+	Callback = function(v)
+		getgenv().InfinityFollowerHP = v
+	end,
 })
 
+--====================--
+-- PLAYER
+--====================--
 Tab:CreateLabel("🏃 Player")
 
 Tab:CreateToggle({
 	Name = "Speed Hack",
-	CurrentValue = false,
-	Callback = function(v) getgenv().SpeedHack = v end,
+	CurrentValue = getgenv().SpeedHack,
+	Callback = function(v)
+		getgenv().SpeedHack = v
+	end,
 })
 
 Tab:CreateSlider({
@@ -269,13 +295,17 @@ Tab:CreateSlider({
 	Range = {16, 100},
 	Increment = 1,
 	CurrentValue = getgenv().PlayerSpeed,
-	Callback = function(v) getgenv().PlayerSpeed = v end,
+	Callback = function(v)
+		getgenv().PlayerSpeed = v
+	end,
 })
 
 Tab:CreateToggle({
 	Name = "Jump Hack",
-	CurrentValue = false,
-	Callback = function(v) getgenv().JumpHack = v end,
+	CurrentValue = getgenv().JumpHack,
+	Callback = function(v)
+		getgenv().JumpHack = v
+	end,
 })
 
 Tab:CreateSlider({
@@ -283,9 +313,22 @@ Tab:CreateSlider({
 	Range = {50, 150},
 	Increment = 1,
 	CurrentValue = getgenv().JumpPower,
-	Callback = function(v) getgenv().JumpPower = v end,
+	Callback = function(v)
+		getgenv().JumpPower = v
+	end,
 })
 
+--====================--
+-- UI STATUS UPDATE
+--====================--
+task.spawn(function()
+	while true do
+		StatusLabel:Set(
+			"Kill Aura : " .. (getgenv().KillAura and "ON" or "OFF")
+		)
+		task.wait(0.2)
+	end
+end)
 --====================--
 -- KEYBIND
 --====================--
