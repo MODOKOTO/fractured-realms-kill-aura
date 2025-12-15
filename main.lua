@@ -1,5 +1,6 @@
 --====================================================--
--- Fractured Realms - Stable Minion Kill Aura (FULL)
+-- Fractured Realms - Stable Minion Kill Aura (FINAL+)
+-- Aggressive Server Damage Mode (NO REMOVE ANYTHING)
 --====================================================--
 
 --====================--
@@ -27,15 +28,18 @@ getgenv().JumpPower = 70
 
 getgenv().KillAuraKey = Enum.KeyCode.Q
 
--- Anti jitter / stability
-getgenv().MinFollowerDistance = 6
-local TARGET_SWITCH_COOLDOWN = 0.3
+-- 🔥 NEW (แรง)
+getgenv().AggressiveMode = true
+getgenv().FollowerAttackRange = 25
 
 --====================--
 -- STATE
 --====================--
 local AuraTarget = nil
 local LastTargetChange = 0
+local TARGET_SWITCH_COOLDOWN = 0.3
+
+local AssignRemote = RS.Remotes.FollowerAttack.AssignTarget
 
 --====================--
 -- UTILS
@@ -53,12 +57,8 @@ local function IsEnemyDead(enemy)
 	return false
 end
 
-local function GetRoot(model)
-	return model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
-end
-
 --====================--
--- COLLECT ALL ENEMIES
+-- COLLECT ENEMIES
 --====================--
 local function GetAllEnemies()
 	local list = {}
@@ -107,10 +107,9 @@ local function GetNearestEnemy()
 
 	for _, enemy in ipairs(GetAllEnemies()) do
 		local hum = enemy:FindFirstChildOfClass("Humanoid")
-		local eroot = GetRoot(enemy)
-
-		if hum and eroot and hum.Health > 0 then
-			local dist = (eroot.Position - root.Position).Magnitude
+		local hrp = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
+		if hum and hrp and hum.Health > 0 then
+			local dist = (hrp.Position - root.Position).Magnitude
 			if dist <= getgenv().AuraRange and dist < closest then
 				closest = dist
 				nearest = enemy
@@ -122,41 +121,42 @@ local function GetNearestEnemy()
 end
 
 --====================--
--- COMMAND FOLLOWERS (FORCED DPS)
+-- FOLLOWER DIST CHECK (แก้ยึกยัก)
+--====================--
+local function AnyFollowerNear(enemy)
+	local pf = workspace:FindFirstChild("Player_Followers")
+	if not pf then return true end
+	local my = pf:FindFirstChild(Client.Name .. "_Followers")
+	if not my then return true end
+
+	local ehrp = enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart)
+	if not ehrp then return false end
+
+	for _, minion in ipairs(my:GetChildren()) do
+		local mhrp = minion:FindFirstChild("HumanoidRootPart") or minion.PrimaryPart
+		if mhrp then
+			if (mhrp.Position - ehrp.Position).Magnitude <= getgenv().FollowerAttackRange then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+--====================--
+-- COMMAND FOLLOWERS (AGGRESSIVE)
 --====================--
 local function CommandFollowers(enemy)
 	if not enemy then return end
 
-	local eroot = GetRoot(enemy)
-	if not eroot then return end
-
-	local pf = workspace:FindFirstChild("Player_Followers")
-	if not pf then return end
-
-	local my = pf:FindFirstChild(Client.Name .. "_Followers")
-	if not my then return end
-
-	local nearEnough = false
-
-	for _, minion in ipairs(my:GetChildren()) do
-		local mroot = GetRoot(minion)
-		if mroot then
-			if (mroot.Position - eroot.Position).Magnitude <= getgenv().MinFollowerDistance then
-				nearEnough = true
-				break
-			end
-		end
+	-- 🔓 reset server lock
+	if getgenv().AggressiveMode then
+		AssignRemote:FireServer(nil)
+		task.wait(0.03)
 	end
 
-	if not nearEnough then return end
-
-	local remote = RS.Remotes.FollowerAttack.AssignTarget
-
-	-- 🔥 RESET SERVER ATTACK STATE
-	remote:FireServer(nil)
-
 	for i = 1, getgenv().HitAmount do
-		remote:FireServer(enemy, true)
+		AssignRemote:FireServer(enemy, true)
 	end
 end
 
@@ -203,7 +203,7 @@ task.spawn(function()
 end)
 
 --====================--
--- KILL AURA LOOP (STABLE)
+-- KILL AURA LOOP (SERVER DAMAGE)
 --====================--
 task.spawn(function()
 	while true do
@@ -215,11 +215,11 @@ task.spawn(function()
 				end
 			end
 
-			if AuraTarget then
+			if AuraTarget and AnyFollowerNear(AuraTarget) then
 				CommandFollowers(AuraTarget)
 			end
 		end
-		task.wait(0.12)
+		task.wait(0.1)
 	end
 end)
 
@@ -254,6 +254,14 @@ Tab:CreateInput({
 	RemoveTextAfterFocusLost = false,
 	Callback = function(t)
 		getgenv().HitAmount = tonumber(t) or 5
+	end,
+})
+
+Tab:CreateToggle({
+	Name = "Aggressive Mode (Server Damage)",
+	CurrentValue = getgenv().AggressiveMode,
+	Callback = function(v)
+		getgenv().AggressiveMode = v
 	end,
 })
 
@@ -316,7 +324,7 @@ UIS.InputBegan:Connect(function(input, gp)
 
 		Rayfield:Notify({
 			Title = "Kill Aura",
-			Content = getgenv().KillAura and "ENABLED" or "DISABLED",
+			Content = getgenv().KillAura and "ENABLED (AGGRESSIVE)" or "DISABLED",
 			Duration = 2
 		})
 	end
