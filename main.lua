@@ -1,6 +1,6 @@
 --====================================================--
--- Fractured Realms - Minion Aura + Movement (Q Toggle)
--- COPY & PASTE VERSION
+-- Fractured Realms - Minion Aura (Q Toggle Only)
+-- FINAL COPY & PASTE VERSION
 --====================================================--
 
 --====================--
@@ -23,7 +23,7 @@ getgenv().SwitchInterval = 3
 getgenv().InfinityFollowerHP = false
 getgenv().ToggleKey = Enum.KeyCode.Q
 
--- Movement (Separate)
+-- Movement
 getgenv().EnableWalkSpeed = false
 getgenv().EnableJumpPower = false
 getgenv().WalkSpeed = 16
@@ -121,7 +121,7 @@ task.spawn(function()
 end)
 
 --====================--
--- MOVEMENT LOOP (SEPARATE)
+-- MOVEMENT LOOP
 --====================--
 task.spawn(function()
 	while true do
@@ -152,7 +152,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 --====================--
--- KEY TOGGLE (Q)
+-- KEY TOGGLE (Q ONLY)
 --====================--
 UIS.InputBegan:Connect(function(input, gp)
 	if gp then return end
@@ -163,7 +163,7 @@ UIS.InputBegan:Connect(function(input, gp)
 
 		Rayfield:Notify({
 			Title = "Kill Aura",
-			Content = getgenv().KillAura and "Status : ON (Q)" or "Status : OFF (Q)",
+			Content = getgenv().KillAura and "ON  (Press Q)" or "OFF (Press Q)",
 			Duration = 2,
 		})
 	end
@@ -174,15 +174,7 @@ end)
 --====================--
 local CombatTab = Window:CreateTab("Combat", "swords")
 
-CombatTab:CreateLabel("Toggle Kill Aura : Press [ Q ]")
-
-CombatTab:CreateToggle({
-	Name = "Kill Aura (Q)",
-	CurrentValue = getgenv().KillAura,
-	Callback = function(v)
-		getgenv().KillAura = v
-	end,
-})
+CombatTab:CreateLabel("Kill Aura Toggle Key : [ Q ]")
 
 CombatTab:CreateSlider({
 	Name = "Aura Range",
@@ -190,6 +182,14 @@ CombatTab:CreateSlider({
 	Increment = 1,
 	CurrentValue = getgenv().AuraRange,
 	Callback = function(v) getgenv().AuraRange = v end,
+})
+
+CombatTab:CreateSlider({
+	Name = "Hit Amount",
+	Range = {1, 20},
+	Increment = 1,
+	CurrentValue = getgenv().HitAmount,
+	Callback = function(v) getgenv().HitAmount = v end,
 })
 
 CombatTab:CreateToggle({
@@ -210,14 +210,6 @@ CombatTab:CreateSlider({
 -- FOLLOWERS TAB
 --====================--
 local FollowerTab = Window:CreateTab("Followers", "users")
-
-FollowerTab:CreateSlider({
-	Name = "Hit Amount",
-	Range = {1, 20},
-	Increment = 1,
-	CurrentValue = getgenv().HitAmount,
-	Callback = function(v) getgenv().HitAmount = v end,
-})
 
 FollowerTab:CreateToggle({
 	Name = "Infinity Follower HP",
