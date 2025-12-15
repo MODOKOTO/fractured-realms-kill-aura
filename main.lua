@@ -170,50 +170,70 @@ task.spawn(function()
 end)
 
 --====================--
--- GRAPHICS (ANTI LAG)
+-- POTATO GRAPHICS MODE
 --====================--
 
-getgenv().LowGraphics = false
+getgenv().PotatoGraphics = false
 
-local function SetLowGraphics(enable)
+local Lighting = game:GetService("Lighting")
+local Terrain = workspace:FindFirstChildOfClass("Terrain")
+
+local function SetPotatoGraphics(enable)
+	-- Lighting (ฆ่าภาพก่อน)
+	Lighting.GlobalShadows = not enable
+	Lighting.Brightness = enable and 1 or 2
+	Lighting.EnvironmentDiffuseScale = enable and 0 or 1
+	Lighting.EnvironmentSpecularScale = enable and 0 or 1
+	Lighting.FogEnd = enable and 9e9 or 1000
+	Lighting.FogStart = 0
+
+	-- Terrain
+	if Terrain then
+		Terrain.WaterWaveSize = enable and 0 or 1
+		Terrain.WaterWaveSpeed = enable and 0 or 10
+		Terrain.WaterReflectance = enable and 0 or 1
+		Terrain.WaterTransparency = enable and 1 or 0
+	end
+
 	for _, v in ipairs(workspace:GetDescendants()) do
-		-- Remove effects
+		-- 🔥 ลบ Effect ทุกชนิด
 		if v:IsA("ParticleEmitter")
 			or v:IsA("Trail")
 			or v:IsA("Beam")
 			or v:IsA("Fire")
 			or v:IsA("Smoke")
 			or v:IsA("Sparkles") then
-
 			v.Enabled = not enable
 
-		-- Disable lights
+		-- 💡 ปิดไฟทั้งหมด
 		elseif v:IsA("PointLight")
 			or v:IsA("SpotLight")
 			or v:IsA("SurfaceLight") then
-
 			v.Enabled = not enable
 
-		-- Kill fancy materials
+		-- 🧱 ฆ่าวัสดุ + Texture
 		elseif v:IsA("BasePart") then
 			if enable then
 				v.Material = Enum.Material.Plastic
 				v.Reflectance = 0
+				v.CastShadow = false
 			end
+
+		-- 🖼️ ลบ Texture / Decal
+		elseif v:IsA("Decal") or v:IsA("Texture") then
+			v.Transparency = enable and 1 or 0
+
+		-- 🌈 ปิด Post Processing
+		elseif v:IsA("BloomEffect")
+			or v:IsA("BlurEffect")
+			or v:IsA("SunRaysEffect")
+			or v:IsA("ColorCorrectionEffect")
+			or v:IsA("DepthOfFieldEffect") then
+			v.Enabled = not enable
 		end
 	end
-
-	-- Global lighting
-	local Lighting = game:GetService("Lighting")
-
-	if enable then
-		Lighting.GlobalShadows = false
-		Lighting.FogEnd = 9e9
-		Lighting.Brightness = 1
-	else
-		Lighting.GlobalShadows = true
-	end
 end
+
 
 --====================--
 -- UI (RAYFIELD)
@@ -351,27 +371,28 @@ MoveTab:CreateSlider({
 })
 
 --====================--
--- GRAPHICS TAB
+-- GRAPHICS TAB (POTATO)
 --====================--
 local GraphicsTab = Window:CreateTab("Graphics", "monitor")
 
-GraphicsTab:CreateLabel("Performance Mode (Anti Lag)")
+GraphicsTab:CreateLabel("Extreme Performance Mode")
 
 GraphicsTab:CreateToggle({
-	Name = "Low Graphics (Extreme)",
-	CurrentValue = getgenv().LowGraphics,
+	Name = "POTATO GRAPHICS (NO EFFECT)",
+	CurrentValue = getgenv().PotatoGraphics,
 	Callback = function(v)
-		getgenv().LowGraphics = v
-		SetLowGraphics(v)
+		getgenv().PotatoGraphics = v
+		SetPotatoGraphics(v)
 
 		Rayfield:Notify({
 			Title = "Graphics",
-			Content = v and "Low Graphics : ON (Max FPS)"
-				or "Low Graphics : OFF",
+			Content = v and "POTATO MODE : ON 🥔 (MAX FPS)"
+				or "POTATO MODE : OFF",
 			Duration = 2,
 		})
 	end,
 })
+
 
 --====================--
 -- MAIN LOOP
