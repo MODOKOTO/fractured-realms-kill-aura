@@ -1,6 +1,6 @@
 --====================================================--
 -- Fractured Realms - Minion Aura (Q Toggle Only)
--- FULL FINAL COPY & PASTE VERSION
+-- BUG FIXED + STABLE VERSION
 --====================================================--
 
 --====================--
@@ -111,9 +111,7 @@ task.spawn(function()
 				if my then
 					for _, minion in ipairs(my:GetChildren()) do
 						local hum = minion:FindFirstChildOfClass("Humanoid")
-						if hum then
-							hum.Health = hum.MaxHealth
-						end
+						if hum then hum.Health = hum.MaxHealth end
 					end
 				end
 			end
@@ -123,7 +121,7 @@ task.spawn(function()
 end)
 
 --====================--
--- MOVEMENT LOOP
+-- MOVEMENT LOOP (RESET SAFE)
 --====================--
 task.spawn(function()
 	while true do
@@ -131,12 +129,8 @@ task.spawn(function()
 		if char then
 			local hum = char:FindFirstChildOfClass("Humanoid")
 			if hum then
-				if getgenv().EnableWalkSpeed then
-					hum.WalkSpeed = getgenv().WalkSpeed
-				end
-				if getgenv().EnableJumpPower then
-					hum.JumpPower = getgenv().JumpPower
-				end
+				hum.WalkSpeed = getgenv().EnableWalkSpeed and getgenv().WalkSpeed or 16
+				hum.JumpPower = getgenv().EnableJumpPower and getgenv().JumpPower or 50
 			end
 		end
 		task.wait(0.2)
@@ -154,7 +148,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 --====================--
--- KEY TOGGLE (Q ONLY)
+-- KEY TOGGLE (Q)
 --====================--
 UIS.InputBegan:Connect(function(input, gp)
 	if gp then return end
@@ -183,15 +177,13 @@ CombatTab:CreateSlider({
 	Range = {5, 200},
 	Increment = 1,
 	CurrentValue = getgenv().AuraRange,
-	Callback = function(v)
-		getgenv().AuraRange = v
-	end,
+	Callback = function(v) getgenv().AuraRange = v end,
 })
 
 CombatTab:CreateDropdown({
 	Name = "Hit Amount",
 	Options = {2, 5, 10, 20, 50, 100, 200, 500},
-	CurrentOption = 5,
+	CurrentOption = {5},
 	Callback = function(option)
 		if typeof(option) == "table" then
 			option = option[1]
@@ -203,9 +195,7 @@ CombatTab:CreateDropdown({
 CombatTab:CreateToggle({
 	Name = "Auto Switch Target",
 	CurrentValue = getgenv().AutoSwitchTarget,
-	Callback = function(v)
-		getgenv().AutoSwitchTarget = v
-	end,
+	Callback = function(v) getgenv().AutoSwitchTarget = v end,
 })
 
 CombatTab:CreateSlider({
@@ -213,9 +203,7 @@ CombatTab:CreateSlider({
 	Range = {1, 10},
 	Increment = 0.5,
 	CurrentValue = getgenv().SwitchInterval,
-	Callback = function(v)
-		getgenv().SwitchInterval = v
-	end,
+	Callback = function(v) getgenv().SwitchInterval = v end,
 })
 
 --====================--
@@ -226,9 +214,7 @@ local FollowerTab = Window:CreateTab("Followers", "users")
 FollowerTab:CreateToggle({
 	Name = "Infinity Follower HP",
 	CurrentValue = getgenv().InfinityFollowerHP,
-	Callback = function(v)
-		getgenv().InfinityFollowerHP = v
-	end,
+	Callback = function(v) getgenv().InfinityFollowerHP = v end,
 })
 
 --====================--
@@ -239,9 +225,7 @@ local MoveTab = Window:CreateTab("Movement", "activity")
 MoveTab:CreateToggle({
 	Name = "Enable Walk Speed",
 	CurrentValue = getgenv().EnableWalkSpeed,
-	Callback = function(v)
-		getgenv().EnableWalkSpeed = v
-	end,
+	Callback = function(v) getgenv().EnableWalkSpeed = v end,
 })
 
 MoveTab:CreateSlider({
@@ -249,17 +233,13 @@ MoveTab:CreateSlider({
 	Range = {16, 150},
 	Increment = 1,
 	CurrentValue = getgenv().WalkSpeed,
-	Callback = function(v)
-		getgenv().WalkSpeed = v
-	end,
+	Callback = function(v) getgenv().WalkSpeed = v end,
 })
 
 MoveTab:CreateToggle({
 	Name = "Enable Jump Power",
 	CurrentValue = getgenv().EnableJumpPower,
-	Callback = function(v)
-		getgenv().EnableJumpPower = v
-	end,
+	Callback = function(v) getgenv().EnableJumpPower = v end,
 })
 
 MoveTab:CreateSlider({
@@ -267,9 +247,7 @@ MoveTab:CreateSlider({
 	Range = {50, 300},
 	Increment = 5,
 	CurrentValue = getgenv().JumpPower,
-	Callback = function(v)
-		getgenv().JumpPower = v
-	end,
+	Callback = function(v) getgenv().JumpPower = v end,
 })
 
 --====================--
