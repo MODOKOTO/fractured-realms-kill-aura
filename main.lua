@@ -1,5 +1,5 @@
 --====================================================--
--- Fractured Realms - Universal Minion Kill Aura (FULL)
+-- Fractured Realms - Stable Minion Kill Aura
 --====================================================--
 
 --====================--
@@ -11,19 +11,19 @@ local UIS = game:GetService("UserInputService")
 local Client = Players.LocalPlayer
 
 --====================--
--- CONFIG (Global)
+-- CONFIG
 --====================--
 getgenv().AuraRange = 20
 getgenv().HitAmount = 5
 getgenv().KillAura = false
 
-getgenv().AutoSwitchTarget = false
-getgenv().SwitchInterval = 3
-
 getgenv().InfinityFollowerHP = false
 
 getgenv().SpeedHack = false
 getgenv().PlayerSpeed = 24
+
+getgenv().JumpHack = false
+getgenv().JumpPower = 70
 
 getgenv().KillAuraKey = Enum.KeyCode.Q
 
@@ -31,31 +31,28 @@ getgenv().KillAuraKey = Enum.KeyCode.Q
 -- STATE
 --====================--
 local AuraTarget = nil
-local LastSwitchTime = 0
 
 --====================--
 -- UTILS
 --====================--
 local function IsInNPCFolder(model)
-	local npcFolder = workspace:FindFirstChild("NPCS")
-	return npcFolder and model:IsDescendantOf(npcFolder)
+	local npc = workspace:FindFirstChild("NPCS")
+	return npc and model:IsDescendantOf(npc)
 end
 
 local function IsEnemyDead(enemy)
 	if not enemy or not enemy.Parent then return true end
-
 	local hum = enemy:FindFirstChildOfClass("Humanoid")
 	if not hum or hum.Health <= 0 then return true end
 	if enemy:GetAttribute("Dead") == true then return true end
-
 	return false
 end
 
 --====================--
--- COLLECT ALL ENEMIES
+-- COLLECT ENEMIES
 --====================--
 local function GetAllEnemies()
-	local enemies = {}
+	local list = {}
 
 	local function scan(container)
 		if not container then return end
@@ -64,30 +61,25 @@ local function GetAllEnemies()
 				and obj:FindFirstChildOfClass("Humanoid")
 				and not IsInNPCFolder(obj)
 			then
-				table.insert(enemies, obj)
+				table.insert(list, obj)
 			end
 		end
 	end
 
-	-- Normal
 	scan(workspace:FindFirstChild("ClickCoins"))
 	scan(workspace:FindFirstChild("Dungeons"))
 
-	-- Infinite Dungeon
 	local inf = workspace:FindFirstChild("INFINITE_DUNGEON")
 	if inf then
-		local model = inf:FindFirstChild("infinite_Dungeon")
-		if model then
-			scan(model:FindFirstChild("Bosses"))
-		end
+		local m = inf:FindFirstChild("infinite_Dungeon")
+		if m then scan(m:FindFirstChild("Bosses")) end
 	end
 
-	-- World Boss
 	scan(workspace:FindFirstChild("Seraphim_Fight"))
 	scan(workspace:FindFirstChild("Scarab"))
 	scan(workspace:FindFirstChild("Sentinel"))
 
-	return enemies
+	return list
 end
 
 --====================--
@@ -96,20 +88,18 @@ end
 local function GetNearestEnemy()
 	local char = Client.Character
 	if not char then return nil end
-
 	local root = char:FindFirstChild("HumanoidRootPart")
 	if not root then return nil end
 
-	local nearest, closest = nil, math.huge
+	local nearest, minDist = nil, math.huge
 
 	for _, enemy in ipairs(GetAllEnemies()) do
 		local hum = enemy:FindFirstChildOfClass("Humanoid")
 		local hrp = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
-
 		if hum and hrp and hum.Health > 0 then
-			local dist = (hrp.Position - root.Position).Magnitude
-			if dist <= getgenv().AuraRange and dist < closest then
-				closest = dist
+			local d = (hrp.Position - root.Position).Magnitude
+			if d <= getgenv().AuraRange and d < minDist then
+				minDist = d
 				nearest = enemy
 			end
 		end
@@ -119,23 +109,18 @@ local function GetNearestEnemy()
 end
 
 --====================--
--- COMMAND FOLLOWERS (KillAura)
+-- COMMAND FOLLOWERS
 --====================--
 local function CommandFollowers(enemy)
 	if not enemy then return end
-	local remote = RS:FindFirstChild("Remotes")
-		and RS.Remotes:FindFirstChild("FollowerAttack")
-		and RS.Remotes.FollowerAttack:FindFirstChild("AssignTarget")
-
-	if not remote then return end
-
+	local remote = RS.Remotes.FollowerAttack.AssignTarget
 	for i = 1, getgenv().HitAmount do
 		remote:FireServer(enemy, true)
 	end
 end
 
 --====================--
--- INFINITY FOLLOWER HP
+-- FOLLOWER HP
 --====================--
 task.spawn(function()
 	while true do
@@ -144,11 +129,9 @@ task.spawn(function()
 			if pf then
 				local my = pf:FindFirstChild(Client.Name .. "_Followers")
 				if my then
-					for _, minion in ipairs(my:GetChildren()) do
-						local hum = minion:FindFirstChildOfClass("Humanoid")
-						if hum then
-							hum.Health = hum.MaxHealth
-						end
+					for _, m in ipairs(my:GetChildren()) do
+						local hum = m:FindFirstChildOfClass("Humanoid")
+						if hum then hum.Health = hum.MaxHealth end
 					end
 				end
 			end
@@ -158,43 +141,29 @@ task.spawn(function()
 end)
 
 --====================--
--- PLAYER SPEED
+-- PLAYER SPEED & JUMP
 --====================--
 task.spawn(function()
 	while true do
-		if getgenv().SpeedHack then
-			local char = Client.Character
-			if char then
-				local hum = char:FindFirstChildOfClass("Humanoid")
-				if hum then
-					hum.WalkSpeed = getgenv().PlayerSpeed
-				end
-			end
+		local char = Client.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum then
+			if getgenv().SpeedHack then hum.WalkSpeed = getgenv().PlayerSpeed end
+			if getgenv().JumpHack then hum.JumpPower = getgenv().JumpPower end
 		end
 		task.wait(0.2)
 	end
 end)
 
 --====================--
--- KILLAURA LOOP
+-- KILL AURA LOOP
 --====================--
 task.spawn(function()
 	while true do
 		if getgenv().KillAura then
-			local now = tick()
-
 			if IsEnemyDead(AuraTarget) then
 				AuraTarget = GetNearestEnemy()
-				LastSwitchTime = now
 			end
-
-			if getgenv().AutoSwitchTarget and AuraTarget then
-				if now - LastSwitchTime >= getgenv().SwitchInterval then
-					AuraTarget = GetNearestEnemy()
-					LastSwitchTime = now
-				end
-			end
-
 			if AuraTarget then
 				CommandFollowers(AuraTarget)
 			end
@@ -204,78 +173,25 @@ task.spawn(function()
 end)
 
 --====================--
--- KEYBIND (Q)
---====================--
-UIS.InputBegan:Connect(function(input, gpe)
-	if gpe then return end
-	if input.KeyCode == getgenv().KillAuraKey then
-		getgenv().KillAura = not getgenv().KillAura
-		if not getgenv().KillAura then
-			AuraTarget = nil
-		end
-		Rayfield:Notify({
-			Title = "Kill Aura",
-			Content = getgenv().KillAura and "ENABLED" or "DISABLED",
-			Duration = 2
-		})
-	end
-end)
-
---====================--
--- UI (Rayfield)
+-- UI
 --====================--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-	Name = "Fractured Realms - Minion System",
+	Name = "Fractured Realms - Minion Aura",
 	ToggleUIKeybind = "K",
 })
 
 local Tab = Window:CreateTab("Main", "swords")
 
--- Combat
-Tab:CreateLabel("⚔️ Combat")
-Tab:CreateLabel("Press [Q] to Toggle Kill Aura")
-
-Tab:CreateSlider({
-	Name = "Kill Aura Range",
-	Range = {5, 200},
-	Increment = 1,
-	CurrentValue = getgenv().AuraRange,
-	Callback = function(v) getgenv().AuraRange = v end,
-})
-
-Tab:CreateInput({
-	Name = "Hit Amount",
-	PlaceholderText = "Default = 5",
-	RemoveTextAfterFocusLost = false,
-	Callback = function(t) getgenv().HitAmount = tonumber(t) or 5 end,
-})
+Tab:CreateLabel("⚔️ Kill Aura")
+Tab:CreateLabel("Press [Q] to Toggle")
 
 Tab:CreateToggle({
-	Name = "Auto Switch Target",
-	CurrentValue = false,
-	Callback = function(v) getgenv().AutoSwitchTarget = v end,
-})
-
-Tab:CreateInput({
-	Name = "Switch Interval",
-	PlaceholderText = "Default = 3",
-	RemoveTextAfterFocusLost = false,
-	Callback = function(t) getgenv().SwitchInterval = tonumber(t) or 3 end,
-})
-
--- Followers
-Tab:CreateLabel("🤖 Followers")
-
-Tab:CreateToggle({
-	Name = "Infinity Follower Health",
+	Name = "Infinity Follower HP",
 	CurrentValue = false,
 	Callback = function(v) getgenv().InfinityFollowerHP = v end,
 })
-
--- Player
-Tab:CreateLabel("🏃 Player")
 
 Tab:CreateToggle({
 	Name = "Speed Hack",
@@ -283,10 +199,25 @@ Tab:CreateToggle({
 	Callback = function(v) getgenv().SpeedHack = v end,
 })
 
-Tab:CreateSlider({
-	Name = "Player Speed",
-	Range = {16, 100},
-	Increment = 1,
-	CurrentValue = getgenv().PlayerSpeed,
-	Callback = function(v) getgenv().PlayerSpeed = v end,
+Tab:CreateToggle({
+	Name = "Jump Hack",
+	CurrentValue = false,
+	Callback = function(v) getgenv().JumpHack = v end,
 })
+
+--====================--
+-- KEYBIND
+--====================--
+UIS.InputBegan:Connect(function(i, g)
+	if g then return end
+	if i.KeyCode == getgenv().KillAuraKey then
+		getgenv().KillAura = not getgenv().KillAura
+		if not getgenv().KillAura then AuraTarget = nil end
+
+		Rayfield:Notify({
+			Title = "Kill Aura",
+			Content = getgenv().KillAura and "ON" or "OFF",
+			Duration = 2
+		})
+	end
+end)
