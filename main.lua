@@ -1,5 +1,5 @@
 --====================================================--
--- Fractured Realms - Minion Aura + Movement UI
+-- Fractured Realms - Minion Aura + Movement (Q Toggle)
 -- COPY & PASTE VERSION
 --====================================================--
 
@@ -15,18 +15,19 @@ local Client = Players.LocalPlayer
 --====================--
 -- GLOBAL DEFAULTS
 --====================--
-getgenv().KillAura = getgenv().KillAura or false
-getgenv().AuraRange = getgenv().AuraRange or 50
-getgenv().HitAmount = getgenv().HitAmount or 5
-getgenv().AutoSwitchTarget = getgenv().AutoSwitchTarget or false
-getgenv().SwitchInterval = getgenv().SwitchInterval or 3
-getgenv().InfinityFollowerHP = getgenv().InfinityFollowerHP or false
-getgenv().ToggleKey = getgenv().ToggleKey or Enum.KeyCode.K
+getgenv().KillAura = false
+getgenv().AuraRange = 50
+getgenv().HitAmount = 5
+getgenv().AutoSwitchTarget = false
+getgenv().SwitchInterval = 3
+getgenv().InfinityFollowerHP = false
+getgenv().ToggleKey = Enum.KeyCode.Q
 
--- Movement
-getgenv().UseCustomMovement = getgenv().UseCustomMovement or false
-getgenv().WalkSpeed = getgenv().WalkSpeed or 16
-getgenv().JumpPower = getgenv().JumpPower or 50
+-- Movement (Separate)
+getgenv().EnableWalkSpeed = false
+getgenv().EnableJumpPower = false
+getgenv().WalkSpeed = 16
+getgenv().JumpPower = 50
 
 local AuraTarget = nil
 local LastSwitchTime = 0
@@ -47,7 +48,6 @@ end
 --====================--
 local function GetAllEnemies()
 	local enemies = {}
-
 	local npcFolder = workspace:FindFirstChild("NPCS")
 	local followerFolder = workspace:FindFirstChild("Player_Followers")
 
@@ -62,7 +62,6 @@ local function GetAllEnemies()
 			end
 		end
 	end
-
 	return enemies
 end
 
@@ -72,12 +71,10 @@ end
 local function GetNearestEnemy()
 	local char = Client.Character
 	if not char then return nil end
-
 	local root = char:FindFirstChild("HumanoidRootPart")
 	if not root then return nil end
 
 	local nearest, closest = nil, math.huge
-
 	for _, enemy in ipairs(GetAllEnemies()) do
 		local hum = enemy:FindFirstChildOfClass("Humanoid")
 		local hrp = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
@@ -89,7 +86,6 @@ local function GetNearestEnemy()
 			end
 		end
 	end
-
 	return nearest
 end
 
@@ -115,9 +111,7 @@ task.spawn(function()
 				if my then
 					for _, minion in ipairs(my:GetChildren()) do
 						local hum = minion:FindFirstChildOfClass("Humanoid")
-						if hum then
-							hum.Health = hum.MaxHealth
-						end
+						if hum then hum.Health = hum.MaxHealth end
 					end
 				end
 			end
@@ -127,33 +121,23 @@ task.spawn(function()
 end)
 
 --====================--
--- MOVEMENT LOOP
+-- MOVEMENT LOOP (SEPARATE)
 --====================--
 task.spawn(function()
 	while true do
-		if getgenv().UseCustomMovement then
-			local char = Client.Character
-			if char then
-				local hum = char:FindFirstChildOfClass("Humanoid")
-				if hum then
+		local char = Client.Character
+		if char then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				if getgenv().EnableWalkSpeed then
 					hum.WalkSpeed = getgenv().WalkSpeed
+				end
+				if getgenv().EnableJumpPower then
 					hum.JumpPower = getgenv().JumpPower
 				end
 			end
 		end
 		task.wait(0.2)
-	end
-end)
-
---====================--
--- KEY TOGGLE
---====================--
-UIS.InputBegan:Connect(function(input, gp)
-	if gp then return end
-	if input.KeyCode == getgenv().ToggleKey then
-		getgenv().KillAura = not getgenv().KillAura
-		AuraTarget = nil
-		LastSwitchTime = tick()
 	end
 end)
 
@@ -167,16 +151,36 @@ local Window = Rayfield:CreateWindow({
 	ToggleUIKeybind = "K",
 })
 
--- COMBAT
+--====================--
+-- KEY TOGGLE (Q)
+--====================--
+UIS.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == getgenv().ToggleKey then
+		getgenv().KillAura = not getgenv().KillAura
+		AuraTarget = nil
+		LastSwitchTime = tick()
+
+		Rayfield:Notify({
+			Title = "Kill Aura",
+			Content = getgenv().KillAura and "Status : ON (Q)" or "Status : OFF (Q)",
+			Duration = 2,
+		})
+	end
+end)
+
+--====================--
+-- COMBAT TAB
+--====================--
 local CombatTab = Window:CreateTab("Combat", "swords")
 
+CombatTab:CreateLabel("Toggle Kill Aura : Press [ Q ]")
+
 CombatTab:CreateToggle({
-	Name = "Kill Aura",
+	Name = "Kill Aura (Q)",
 	CurrentValue = getgenv().KillAura,
 	Callback = function(v)
 		getgenv().KillAura = v
-		AuraTarget = nil
-		LastSwitchTime = tick()
 	end,
 })
 
@@ -202,7 +206,9 @@ CombatTab:CreateSlider({
 	Callback = function(v) getgenv().SwitchInterval = v end,
 })
 
--- FOLLOWERS
+--====================--
+-- FOLLOWERS TAB
+--====================--
 local FollowerTab = Window:CreateTab("Followers", "users")
 
 FollowerTab:CreateSlider({
@@ -219,13 +225,15 @@ FollowerTab:CreateToggle({
 	Callback = function(v) getgenv().InfinityFollowerHP = v end,
 })
 
--- MOVEMENT
+--====================--
+-- MOVEMENT TAB
+--====================--
 local MoveTab = Window:CreateTab("Movement", "activity")
 
 MoveTab:CreateToggle({
-	Name = "Custom Movement",
-	CurrentValue = getgenv().UseCustomMovement,
-	Callback = function(v) getgenv().UseCustomMovement = v end,
+	Name = "Enable Walk Speed",
+	CurrentValue = getgenv().EnableWalkSpeed,
+	Callback = function(v) getgenv().EnableWalkSpeed = v end,
 })
 
 MoveTab:CreateSlider({
@@ -234,6 +242,12 @@ MoveTab:CreateSlider({
 	Increment = 1,
 	CurrentValue = getgenv().WalkSpeed,
 	Callback = function(v) getgenv().WalkSpeed = v end,
+})
+
+MoveTab:CreateToggle({
+	Name = "Enable Jump Power",
+	CurrentValue = getgenv().EnableJumpPower,
+	Callback = function(v) getgenv().EnableJumpPower = v end,
 })
 
 MoveTab:CreateSlider({
