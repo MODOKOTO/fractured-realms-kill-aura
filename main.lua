@@ -1,6 +1,7 @@
 --====================================================--
--- Fractured Realms - Minion Aura (Q Toggle Only)
--- HIT AMOUNT INPUT VERSION (STABLE)
+-- Fractured Realms - Minion Aura
+-- Kill Aura : Q Toggle
+-- Follower Warp Attack (NEW)
 --====================================================--
 
 --====================--
@@ -20,14 +21,19 @@ getgenv().AuraRange = 50
 getgenv().HitAmount = 5
 getgenv().AutoSwitchTarget = false
 getgenv().SwitchInterval = 3
+
+-- Followers
 getgenv().InfinityFollowerHP = false
-getgenv().ToggleKey = Enum.KeyCode.Q
+getgenv().FollowerWarpAttack = false
 
 -- Movement
 getgenv().EnableWalkSpeed = false
 getgenv().EnableJumpPower = false
 getgenv().WalkSpeed = 16
 getgenv().JumpPower = 50
+
+-- Key
+getgenv().ToggleKey = Enum.KeyCode.Q
 
 local AuraTarget = nil
 local LastSwitchTime = 0
@@ -90,10 +96,36 @@ local function GetNearestEnemy()
 end
 
 --====================--
+-- FOLLOWER WARP
+--====================--
+local function WarpFollowersToEnemy(enemy)
+	if not enemy then return end
+	local enemyRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
+	if not enemyRoot then return end
+
+	local pf = workspace:FindFirstChild("Player_Followers")
+	if not pf then return end
+	local my = pf:FindFirstChild(Client.Name .. "_Followers")
+	if not my then return end
+
+	for _, minion in ipairs(my:GetChildren()) do
+		local hrp = minion:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			hrp.CFrame = enemyRoot.CFrame * CFrame.new(math.random(-3,3), 0, math.random(-3,3))
+		end
+	end
+end
+
+--====================--
 -- COMMAND FOLLOWERS
 --====================--
 local function CommandFollowers(enemy)
 	if not enemy then return end
+
+	if getgenv().FollowerWarpAttack then
+		WarpFollowersToEnemy(enemy)
+	end
+
 	for i = 1, getgenv().HitAmount do
 		RS.Remotes.FollowerAttack.AssignTarget:FireServer(enemy, true)
 	end
@@ -121,7 +153,7 @@ task.spawn(function()
 end)
 
 --====================--
--- MOVEMENT LOOP (SAFE RESET)
+-- MOVEMENT LOOP
 --====================--
 task.spawn(function()
 	while true do
@@ -159,7 +191,7 @@ UIS.InputBegan:Connect(function(input, gp)
 
 		Rayfield:Notify({
 			Title = "Kill Aura",
-			Content = getgenv().KillAura and "ON  (Press Q)" or "OFF (Press Q)",
+			Content = getgenv().KillAura and "ON  (Q)" or "OFF (Q)",
 			Duration = 2,
 		})
 	end
@@ -177,9 +209,7 @@ CombatTab:CreateSlider({
 	Range = {5, 200},
 	Increment = 1,
 	CurrentValue = getgenv().AuraRange,
-	Callback = function(v)
-		getgenv().AuraRange = v
-	end,
+	Callback = function(v) getgenv().AuraRange = v end,
 })
 
 CombatTab:CreateInput({
@@ -191,6 +221,14 @@ CombatTab:CreateInput({
 		if value and value >= 1 then
 			getgenv().HitAmount = math.floor(value)
 		end
+	end,
+})
+
+CombatTab:CreateToggle({
+	Name = "Follower Warp Attack",
+	CurrentValue = getgenv().FollowerWarpAttack,
+	Callback = function(v)
+		getgenv().FollowerWarpAttack = v
 	end,
 })
 
